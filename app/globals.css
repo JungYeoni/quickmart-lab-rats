@@ -1,0 +1,65 @@
+@import "tailwindcss";
+
+/* 디자인 토큰: reference/prototype.html 에서 그대로 옮김 (라이트 / 다크) */
+:root {
+  --bg: #f3f5fa; --surface: #ffffff; --sunk: #f7f8fc; --ink: #1b1f3b; --ink2: #555c7a; --ink3: #8a90a8; --line: #e3e7f1;
+  --blue: #3a5bff; --blue-soft: #eaeeff; --a: #8a91a8; --c: #0e9c9c; --c-soft: #e0f4f4;
+  --pos: #0f9d63; --pos-soft: #e2f5ec; --neg: #d93b41; --neg-soft: #fdebec; --warn: #b87700; --warn-soft: #fff3d6;
+  --bar: #1b1f3b; --bar-ink: #ffffff; --bar-track: #3a3f63;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12152a; --surface: #1a1e36; --sunk: #151931; --ink: #e8eaf6; --ink2: #aeb3cc; --ink3: #7a809c; --line: #2a2f4d;
+    --blue: #7b93ff; --blue-soft: #232b55; --a: #8f96b0; --c: #35c4c4; --c-soft: #123536;
+    --pos: #3dd598; --pos-soft: #15352a; --neg: #ff6b70; --neg-soft: #3a1d24; --warn: #f2b53a; --warn-soft: #3a2f14;
+    --bar: #e8eaf6; --bar-ink: #12152a; --bar-track: #b9bdd6;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12152a; --surface: #1a1e36; --sunk: #151931; --ink: #e8eaf6; --ink2: #aeb3cc; --ink3: #7a809c; --line: #2a2f4d;
+  --blue: #7b93ff; --blue-soft: #232b55; --a: #8f96b0; --c: #35c4c4; --c-soft: #123536;
+  --pos: #3dd598; --pos-soft: #15352a; --neg: #ff6b70; --neg-soft: #3a1d24; --warn: #f2b53a; --warn-soft: #3a2f14;
+  --bar: #e8eaf6; --bar-ink: #12152a; --bar-track: #b9bdd6;
+  color-scheme: dark;
+}
+
+/* Tailwind 유틸리티(bg-surface, text-ink2, border-line …)로 노출 */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-sunk: var(--sunk);
+  --color-ink: var(--ink);
+  --color-ink2: var(--ink2);
+  --color-ink3: var(--ink3);
+  --color-line: var(--line);
+  --color-brand: var(--blue);
+  --color-brand-soft: var(--blue-soft);
+  --color-arm-a: var(--a);
+  --color-arm-c: var(--c);
+  --color-arm-c-soft: var(--c-soft);
+  --color-pos: var(--pos);
+  --color-pos-soft: var(--pos-soft);
+  --color-neg: var(--neg);
+  --color-neg-soft: var(--neg-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-bar: var(--bar);
+  --color-bar-ink: var(--bar-ink);
+  --color-bar-track: var(--bar-track);
+  --font-sans: var(--font-plex), system-ui, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 1.65;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 4px; }
