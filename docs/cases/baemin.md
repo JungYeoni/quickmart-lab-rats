@@ -1,0 +1,212 @@
+# 사례 ① 배민: 최소주문금액바 4번의 A/B 실험
+
+## 0. 메타
+- 원문: 우아한형제들 기술블로그 「한 번 성공하니 다음도 쉬울 줄 알았다: 최소주문금액바 4번의 A/B실험」(최주연, 2026) https://techblog.woowahan.com/26379/
+- 화면 속 서비스명: 가상 퀵커머스 ‘퀵마트’ (원문 각색임을 명시)
+- 난이도 ★★ / 권장: 처음 실험을 접하는 조
+- 커버 개념: 가설(ABI 템플릿), OEC·가드레일·보조, 실험 단위, 범위와 외적 타당성, 표본·MDE·기간, 신규성 효과, Peeking, Ramp-up, SRM·생존 편향·계측 문제, Underpowered NULL, 트리거 분석(counterfactual logging)·선택 편향, A/B/n·다중검정, 보조 지표→다음 가설, 승률 vs 학습률
+
+### 원문에서 확인된 사실 (Readout 방향은 반드시 이와 일치)
+| Phase | 원문 사실 |
+|---|---|
+| P1 | 안드로이드·가게홈 한정으로 작게 시작. 메인 장바구니 이탈률 감소, 가드레일 커머스 주문전환율 상승 |
+| P2 | 전 지면·전 OS 확대 후에도 이탈률 감소·전환율 상승. 그러나 GMV 임팩트 없음, 평균주문금액 소폭 하락(허들에 맞춰 담기). 첫 주문 혜택 고객은 바 클릭↑·이탈률↑, 멤버십 고객은 클릭↑·이탈률↓ |
+| P3 | 메인을 커머스 주문전환율로 변경. 주요 지표 유의차 없음. 업셀링 문구 노출 조건(고허들 쿠폰 보유 + 최소금액 달성) 충족자가 적었음. 노출자에 한정하면 장바구니 금액·전환율이 높았음 |
+| P4 | B(항상 노출) vs C(부족 금액 8천 원 이하만). 주문전환율 향상 없음. C에서 평균주문금액 유의 하락 → 쿠폰 운영 확대로 업셀링 노출이 많아진 환경에서 P3 가설을 반대 방향으로 확인 |
+| 공통 | 실험을 성공/실패 이분법으로 보지 말 것, 보조 지표에서 다음 가설을 길어 올릴 것 |
+- SRM(구버전 iOS 크래시) 에피소드는 원문에 없는 **교육용 추가 함정**이다. 화면에 "실습용으로 추가한 상황"이라고 표기.
+
+## 0-1. 스텝 매핑
+| 스텝 | 내용 |
+|---|---|
+| s1_diagnose | 이탈 퍼널 대시보드(관찰 데이터): 장바구니 이탈 고객의 최소금액 미달 비중, 장바구니 재방문 횟수. "바를 보여주면 이탈이 줄 것"을 관찰만으로 주장할 수 없는 이유 토론 |
+| s2_design | P1 설계서 (아래 3-1 필드 전체) |
+| s3_run | A/A 모드 → 본 실험 일별 대시보드 (stopping 규칙대로 자동 종료) |
+| s4_readout | P1 Readout → 결정 |
+| s5_deep | P2(SRM 원인 조사 → 재실행 설계 → Readout) → P3(설계 → NULL → 검정력·트리거 분석) |
+| s6_final | P4 설계(arms, 보정) → Readout → 결정 |
+
+## 1. 고정 모집단 (SEED = 20241001)
+
+### 1-1. 일 유입 (전 OS + 전 탐색 화면 기준)
+- 총 52,000명/일. 요일 배수: 월~금 1.00, 토 1.08, 일 1.12
+- 범위 축소 시 비율
+  - 안드로이드만: × 0.59
+  - 가게홈만(탐색 화면 중): × 0.56
+  - 안드로이드 + 가게홈 = 52,000 × 0.59 × 0.56 ≈ 17,200
+
+### 1-2. 세그먼트 (곱 구조, 독립 가정)
+| 축 | 값 (비중) |
+|---|---|
+| OS | android 0.59 / ios_new 0.33 / ios_old 0.08 |
+| 고객 유형 | general 0.73 / first_order 0.08 / member 0.19 |
+| 활동성 | heavy 0.30 / light 0.70 |
+
+### 1-3. 기본 퍼널 (대조군)
+| 지표 | general | first_order | member | 비고 |
+|---|---|---|---|---|
+| 장바구니 담기율 (유입 중) | 0.32 | 0.30 | 0.36 | 주말 +0.02 |
+| 장바구니 이탈률 | 0.627 | 0.712 | 0.485 | 주말 −0.012, heavy −0.03 |
+| 평균주문금액 (원) | 25,200 | 22,800 | 27,500 | 주문 단위 SD 10,300 |
+| 최소주문금액 +2천 원 이내 주문 비중 | 0.18 | 0.22 | 0.15 | |
+| 앱 크래시율 (배정 사용자) | 0.0042 | | | ios_old 0.0080 |
+| 7일 재구매율 (주문자 중) | 0.213 | | | |
+
+- 프로모션 주간: 실험 8~14일차는 대형 프로모션. 이탈률 −0.06(전환율 상승), 담기율 +0.04. (램프업·심슨 시나리오용)
+- 최소주문금액 15,000원.
+
+### 1-4. 노이즈
+- 일 × 세그먼트 × 그룹 단위로 집계값을 생성. 카운트는 정규근사 이항: `round(n·p + sqrt(n·p·(1−p))·z)`.
+- z는 `hash(SEED, phase, day, segment, arm, metric)`으로 시드한 PRNG(mulberry32)에서 뽑는다 → 공통 난수.
+- 사용자 수 자체의 일별 변동: ±4% (같은 방식으로 시드).
+
+---
+
+## 2. 진짜 효과 (B 대 A, 숨김 값)
+
+### P1 (최소주문금액바 도입)
+- 장바구니 이탈률: 정상 상태 −0.025, 신규성 추가분 −0.036·exp(−(d−1)/2.2) (d = 노출 후 일차)
+- 평균주문금액 −0.2%, 크래시율 +0.0002
+- 범위가 전체여도 효과 동일 (P1 범위 선택은 트래픽과 리스크에만 영향)
+
+### P2 (전 화면·전 OS 확대)
+- 이탈률: general −0.024 / first_order +0.018 / member −0.036
+- 최소+2천 원 이내 비중: 0.18 → 0.246 (전 세그먼트 +0.066) → 평균주문금액 약 −4.9%
+- 결과적으로 인당 거래액은 거의 변화 없음(+0.9% 내외)
+- **iOS 구버전 버그**: `qa_old_ios = false`이면 ios_old의 B그룹 사용자 24%가 첫 화면 로그 전에 크래시
+  - `count_basis = 'exposure'`(노출 로그 기준): 이 사용자들이 B에서 **누락** → SRM 발생, 남은 B는 생존자 편향(이탈률이 0.04 더 낮게 관측)
+  - `count_basis = 'assignment'`(배정 기준): 누락 없음, 대신 해당 사용자들은 이탈 처리 → B 크래시율 급증(가드레일 악화로 드러남)
+
+### P3 (혜택 넛지)
+- 효과는 **트리거 사용자**(고허들 쿠폰 보유 AND 최소주문금액 달성)에게만: 전환율 +0.023, 평균주문금액 +6.1%
+- 트리거 비율: `coupon_ops = 'low'` → 4.1%, `'high'`(마케팅 협업) → 18%
+- 트리거 사용자의 기본 전환율 0.50, 기본 평균주문금액 29,400 (선택 편향의 원천)
+
+### P4 (부족 금액 추천)
+- 주문전환율: B, C 모두 효과 0
+- 평균주문금액: B 0 / C −2.0% (쿠폰 운영이 high라 업셀링 노출이 많은 환경)
+- 7일 재구매율 등 나머지 보조 지표: 효과 0 (우연히 유의할 수 있음 → 다중검정 교육)
+
+---
+
+## 3. 설계 입력 → 결과 반영 규칙
+
+### 3-1. 공통 설계 필드 (zod 스키마)
+```ts
+type Design = {
+  phase: 'p1'|'p2'|'p3'|'p4'
+  hypothesis: { action: string; behavior: string; impact: string }
+  scope: { os: 'android'|'all'; surface: 'store_home'|'all' }
+  unit: 'user'|'session'|'pageview'
+  metrics: { primary: MetricKey; guardrails: MetricKey[]; secondary: MetricKey[] }
+  alpha: 0.01|0.05|0.1
+  power: 0.7|0.8|0.9
+  mde_pp: number            // 메인 지표 기준 절대 %p (금액 지표면 상대 %)
+  duration_days: number     // 7~28
+  allocation: number        // 범위 트래픽 중 실험 투입 비율 0.05~1
+  ramp: 'none'|'10_50_100'|'10_week1_50_week2'
+  include_ramp_days: boolean
+  stopping: 'fixed'|'peek_stop'|'sequential'
+  count_basis: 'assignment'|'exposure'
+  // phase 전용
+  qa_old_ios?: boolean       // p2
+  trigger_logging?: boolean  // p3
+  coupon_ops?: 'low'|'high'  // p3 (마케팅 협업 요청 여부)
+  arms?: ('A'|'B'|'C')[]     // p4
+  correction?: 'none'|'bonferroni'|'bh' // p4
+}
+type MetricKey = 'abandon'|'conv'|'aov'|'gmv'|'near_min_share'|'bar_click'|'crash'|'load_time'|'repurchase7'|'cs_rate'|'min_reach'
+```
+
+### 3-2. 반영 규칙
+| 설계 | 규칙 |
+|---|---|
+| scope | 일 유입 = 52,000 × 범위 배수 × allocation. os='android'면 ios 세그먼트 제외 |
+| unit = session | 사용자당 평균 2.3세션. 같은 사용자가 두 그룹을 오가며 **관측 효과 × 0.55**. 분석은 세션 단위 SE로 계산해 p-value가 과소(실제 SE의 1/1.5) → 경고 플래그 `UNIT_MISMATCH` |
+| unit = pageview | 관측 효과 × 0.30, SE 과소(1/2.0), 크래시율 +0.001(깜빡임 렌더링) → `UNIT_MISMATCH`, `FLICKER` |
+| primary = bar_click | 대조군에 정의 불가 → 시뮬 거부, 에러 메시지 "대조군에는 바가 없어 비교할 수 없어요" |
+| primary 지표 | 해당 지표로 SRM → 메인 → 가드레일 → 보조 순 Readout 생성. 지표별 분산이 달라 같은 효과도 유의 여부가 갈림 (gmv는 per-user SD 9,190원) |
+| alpha / power / mde | 계획 표본·기간 계산(프로토타입 calc 로직). 실제 달성 검정력도 Readout에 표시 |
+| duration_days | 실행 기간. 7일 미만 입력 불가. 짧을수록 P1 신규성 효과가 섞여 효과 과대추정 → `SHORT_DURATION` |
+| ramp = 10_50_100 | 1일차 10%, 2일차 50%, 3일차~ 100% 노출. include_ramp_days=false면 1~2일 제외 분석 |
+| ramp = 10_week1_50_week2 | 1~7일 B 10%, 8~14일 B 50% (8~14일 프로모션 주간과 겹침). include_ramp_days=true로 합쳐 분석하면 **심슨의 역설** 발생 → `SIMPSON_RISK` |
+| stopping = peek_stop | 매일 누적 검정, 처음 p<α인 날 종료하고 그날 결과로 Readout. 끝까지 안 뜨면 duration까지 → `PEEKED` |
+| stopping = sequential | O'Brien-Fleming형 경계 `z_k = z_{α/2} · sqrt(K/k)`로 매일 확인, 넘으면 조기 종료 (α 유지) |
+| count_basis | P2 버그 규칙 참고 |
+| trigger_logging = false | P3 트리거 분석 시 "B 노출자 vs B 미노출자" 비교만 가능(편향). true면 A·B 조건 충족자 비교 가능 |
+| coupon_ops = high | P3 트리거 비율 18%. 단 실험 비용(쿠폰 비용) 필드 Readout에 표시 |
+| correction (p4) | 메인+가드레일+보조 전 검정에 적용해 판정 |
+
+### 3-3. 경고 플래그 (Readout.flags)
+`SRM`, `UNIT_MISMATCH`, `FLICKER`, `SHORT_DURATION`, `UNDERPOWERED`(달성 검정력 < 0.5), `PEEKED`, `SIMPSON_RISK`, `MULTIPLE_TESTING`(보정 없이 검정 10개 이상), `SELECTION_BIAS`(편향 트리거 비교 사용)
+- 플래그는 조 화면에 즉시 보여주지 않는다. Readout에는 데이터(SRM 수치 등)만 보이고, 플래그는 강사 화면과 AI 리뷰 입력에만 쓴다. (수강생이 스스로 발견하게)
+
+---
+
+## 4. Readout 출력 형태
+```ts
+type Readout = {
+  phase; designHash; days: DailyRow[]       // 일별 그룹별 집계
+  stoppedDay: number                         // peek_stop/sequential 종료일
+  srm: { counts: number[]; ratios: number[]; p: number }
+  metrics: { key; role:'P'|'G'|'S'; type:'prop'|'mean'; arms: Record<Arm,{x?;n;m?;sd?}>;
+             d; ci:[number,number]; rel; relCi:[number,number]; p; win; significant }[]
+  plannedN; plannedDays; achievedPower
+  segments?: ...                             // p2 세그먼트 표
+  trigger?: { biased: ...; counterfactual?: ... }  // p3
+  flags: Flag[]
+}
+```
+
+---
+
+## 5. 검증 시나리오 (Vitest로 그대로 작성)
+| # | 설계 | 기대 결과 |
+|---|---|---|
+| 1 | P1, user, android+store_home, primary abandon, 14일, fixed | SRM 없음, abandon 유의 개선(약 −2.5~−3.0%p), conv 유의 개선, crash 차이 없음 |
+| 2 | 1과 같되 7일 | 효과 추정치가 1보다 큼(신규성), `SHORT_DURATION` |
+| 3 | 1과 같되 unit=session | 관측 효과 약 절반, `UNIT_MISMATCH` |
+| 4 | P1 A/A(효과 0 모드), peek_stop, 14일 | 400개 시드 중 위양성률 15~25% |
+| 5 | 4와 같되 fixed | 위양성률 3~7% |
+| 6 | P2, all, exposure, qa_old_ios=false | SRM p < 0.001, B 사용자 약 7천 명 부족 |
+| 7 | P2, all, assignment, qa_old_ios=true | SRM 없음, abandon·conv 개선, aov 유의 악화, gmv 차이 없음, first_order 세그먼트 이탈률 악화 |
+| 8 | P3, coupon_ops=low, primary conv | conv 차이 없음, achievedPower 0.15~0.35, `UNDERPOWERED` |
+| 9 | P3, trigger_logging=true | counterfactual 트리거 비교에서 conv·aov 유의 개선 |
+| 10 | P3, trigger_logging=false | 편향 비교만 제공, 차이 과대(30%p 이상), `SELECTION_BIAS` |
+| 11 | P4, correction=none, 보조 지표 6개 이상 | C의 aov 유의 악화, 메인 차이 없음, `MULTIPLE_TESTING` |
+| 12 | `simpson_demo` 모드(주문전환율 진짜 효과 −0.4%p), 10_week1_50_week2 + include_ramp_days=true | 합산하면 B가 우세, 주차별로 보면 B 열세 |
+| 13 | 같은 설계 두 번 | 결과 완전히 동일 (결정성) |
+| 14 | 설계 A와 B가 duration만 다름 | 겹치는 날짜의 일별 대조군 집계 동일 (공통 난수) |
+
+
+---
+
+## 6. 결정 옵션과 루브릭
+
+### s1_diagnose 루브릭
+- 관찰 데이터만으로는 "바 → 이탈 감소" 인과를 말할 수 없음(장바구니를 자주 오가는 사람은 원래 구매 의도가 높을 수 있음 등 교란). 통제된 비교가 필요하다는 결론이면 만점.
+
+### s2_design 루브릭
+| 항목 | 모범 답 | 채점 포인트 |
+|---|---|---|
+| 가설 | Action: 가게홈에서 최소금액 달성 여부 실시간 안내 / Behavior: 장바구니를 오가지 않고 바로 주문 / Impact: 장바구니 이탈률 감소 | 바꾸는 것 1개, 메커니즘, 측정 지표와 방향 |
+| 메인 | 장바구니 이탈률 | bar_click 치명적 오류, conv 부분 정답(민감도↓), 금액 지표 부분 정답 |
+| 가드레일 | 커머스 주문전환율 + 크래시/로딩 | 시스템 가드레일 누락 감점 |
+| 보조 | 평균주문금액 등 | P2 복선 |
+| 단위 | 사용자 | 세션/페이지뷰 오류 |
+| 범위 | 안드로이드 + 가게홈 | 전체도 허용하되 리스크·공수 근거 필요 |
+| 기간 | 14일 이상 | 7일은 신규성 위험 |
+| 중간 확인 | fixed 또는 sequential | peek_stop 오류 |
+
+### 결정
+| Phase | 옵션 | 판정 |
+|---|---|---|
+| P1 | 배포 / 배포 안 함 / 기간 연장 재실험 | 배포(확대 실험 필요 언급 시 만점) / 오답 / 부분(홀드아웃이 더 나음) |
+| P2 | 전면 배포 / 배포 안 함 / 배포 + 보조 지표 발견으로 후속 실험 | 부분 / 오답 / 정답 |
+| P3 | 롤백 / 배포 / 노출 조건 확대 후 재실험(마케팅 협업) | 오답 / 부분 / 정답 |
+| P4 | B 배포 / C 배포 / 둘 다 배포 안 함 + 학습 정리 | 오답(재구매율은 다중검정 위양성) / 오답(가드레일 악화) / 정답 |
+
+### 정답 공개 해설(reveal) 요지
+- P1→P2: 작게 시작해 가능성 확인 후 확대. P2 보조 지표의 두 발견(평균주문금액 천장, 구매 의사 높은 고객에게 혜택 안내가 효과적)이 P3 가설이 됨.
+- P3: 가설이 틀린 게 아니라 노출 규모가 부족. 평균주문금액은 UI보다 사업 전략(허들·쿠폰)에 좌우.
+- P4: P3에서 흐릿했던 가설이 반대 방향으로 선명해짐. 실험은 다음 가설의 재료.
