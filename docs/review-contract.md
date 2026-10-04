@@ -1,6 +1,7 @@
 # LLM 리뷰 계약 (`/api/review`)
 
-- 모델 `claude-sonnet-5`, max_tokens 2500, temperature 0.3, 응답은 **JSON만**(zod 검증, 실패 시 1회 재시도)
+- 모델 Solar `solar-pro4` (Upstage, OpenAI 호환 API: `https://api.upstage.ai/v1`), max_tokens 2500, temperature 0.3, 응답은 **JSON만**(`response_format`의 JSON 모드 또는 json_schema 사용 → zod 검증, 실패 시 1회 재시도)
+- 추론(reasoning) 토큰이 max_tokens를 잠식하지 않도록 `reasoning_effort`는 낮게 두고, 응답이 잘리면 max_tokens를 늘린다
 - 루브릭 원천: `docs/cases/<case>.md`의 "루브릭"과 "결정 옵션" 섹션 (빌드 시 `lib/cases/<case>/rubric.ts`로 임베드)
 - 원문 문장을 길게 인용하지 않는다. 사실은 각 사례 문서의 "원문에서 확인된 사실"만 사용
 

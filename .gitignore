@@ -15,3 +15,9 @@ dist/
 .DS_Store
 .vercel
 *.log
+
+# typescript / test
+*.tsbuildinfo
+next-env.d.ts
+/coverage
+*.pem

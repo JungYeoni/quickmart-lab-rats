@@ -16,10 +16,10 @@ DA 트랙 A/B 테스트 실습 세션용 웹앱. 조마다 실제 테크 기업 
 2. **원문 사실과 가상 수치를 섞지 않는다**. 화면마다 출처 박스 + "수치는 교육용 가상 데이터" 표기. 원문 문장은 짧게 요약만.
 3. **숨긴 효과와 플래그는 조 화면 API로 내려보내지 않는다**(강사 화면, AI 리뷰, 정답 공개 이후만).
 4. 모든 DB 쓰기는 Route Handler + service role. 클라이언트는 anon 읽기와 Realtime 구독만.
-5. Anthropic 키는 서버 전용.
+5. Solar(Upstage) API 키는 서버 전용.
 
 ## 스택
-Next.js 15 (App Router) + TypeScript strict + Tailwind / Supabase (Postgres + Realtime) / `@anthropic-ai/sdk`, 모델 `claude-sonnet-5` / zod / Vitest / Vercel. 차트는 SVG 직접 구현(프로토타입 lineChart 포팅).
+Next.js 15 (App Router) + TypeScript strict + Tailwind / Supabase (Postgres + Realtime) / `openai` SDK로 Solar API 호출(baseURL `https://api.upstage.ai/v1`, 모델 `solar-pro4`) / zod / Vitest / Vercel. 차트는 SVG 직접 구현(프로토타입 lineChart 포팅).
 
 ## 폴더 구조
 ```

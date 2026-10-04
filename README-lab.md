@@ -14,7 +14,7 @@ quickmart-lab/
 
 ## 0. 준비 (15분)
 
-1. 계정: GitHub, Vercel, Supabase, Anthropic Console(API 키 발급, 결제 수단 등록)
+1. 계정: GitHub, Vercel, Supabase, Upstage Console(Solar API 키 발급, 결제 수단 등록)
 2. Node.js 20 이상 설치 → 터미널에서 `node -v`
 3. Claude Code 설치 (데스크톱 앱 또는 `npm install -g @anthropic-ai/claude-code`)
 4. 이 키트 압축을 풀고 폴더 이름을 `quickmart-lab`으로
@@ -33,7 +33,7 @@ quickmart-lab/
 NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
 SUPABASE_SERVICE_ROLE_KEY=eyJ...
-ANTHROPIC_API_KEY=sk-ant-...
+UPSTAGE_API_KEY=up_...
 ADMIN_PASSWORD=원하는-강사-비밀번호
 ADMIN_SESSION_SECRET=아무-긴-랜덤-문자열
 ```
