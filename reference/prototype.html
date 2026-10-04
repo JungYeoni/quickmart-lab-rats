@@ -1,0 +1,965 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>퀵마트 실험실: 최소주문금액바 A/B 테스트 실습</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F3F5FA;--surface:#FFFFFF;--sunk:#F7F8FC;--ink:#1B1F3B;--ink2:#555C7A;--ink3:#8A90A8;--line:#E3E7F1;
+  --blue:#3A5BFF;--blue-soft:#EAEEFF;--a:#8A91A8;--c:#0E9C9C;--c-soft:#E0F4F4;
+  --pos:#0F9D63;--pos-soft:#E2F5EC;--neg:#D93B41;--neg-soft:#FDEBEC;--warn:#B87700;--warn-soft:#FFF3D6;
+  --bar:#1B1F3B;--bar-ink:#FFFFFF;--bar-track:#3A3F63;
+  color-scheme:light;
+  box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#12152A;--surface:#1A1E36;--sunk:#151931;--ink:#E8EAF6;--ink2:#AEB3CC;--ink3:#7A809C;--line:#2A2F4D;
+    --blue:#7B93FF;--blue-soft:#232B55;--a:#8F96B0;--c:#35C4C4;--c-soft:#123536;
+    --pos:#3DD598;--pos-soft:#15352A;--neg:#FF6B70;--neg-soft:#3A1D24;--warn:#F2B53A;--warn-soft:#3A2F14;
+    --bar:#E8EAF6;--bar-ink:#12152A;--bar-track:#B9BDD6;color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#12152A;--surface:#1A1E36;--sunk:#151931;--ink:#E8EAF6;--ink2:#AEB3CC;--ink3:#7A809C;--line:#2A2F4D;
+  --blue:#7B93FF;--blue-soft:#232B55;--a:#8F96B0;--c:#35C4C4;--c-soft:#123536;
+  --pos:#3DD598;--pos-soft:#15352A;--neg:#FF6B70;--neg-soft:#3A1D24;--warn:#F2B53A;--warn-soft:#3A2F14;
+  --bar:#E8EAF6;--bar-ink:#12152A;--bar-track:#B9BDD6;color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px);height:100%}
+body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);
+  font:15px/1.65 "IBM Plex Sans KR",system-ui,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+a{color:var(--blue)}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px;border-radius:4px}
+img,svg{max-width:100%}
+
+/* Layout */
+.app{display:grid;grid-template-columns:252px minmax(0,1fr);min-height:100%}
+.nav{position:sticky;top:env(safe-area-inset-top,0px);height:100vh;height:100dvh;overflow:auto;
+  background:var(--surface);border-right:1px solid var(--line);padding:22px 14px}
+.brand{display:flex;gap:10px;align-items:center;padding:0 8px 18px}
+.brand .logo{width:34px;height:34px;border-radius:10px;background:var(--blue);display:grid;place-items:center;color:#fff;font-weight:700;font-size:15px}
+.brand b{display:block;font-size:15px;line-height:1.3}
+.brand small{color:var(--ink3);font-size:12px}
+.navgroup{font-size:12px;color:var(--ink3);padding:14px 10px 6px}
+.navitem{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:0;background:none;
+  padding:9px 10px;border-radius:8px;cursor:pointer;color:var(--ink2);font-size:14px}
+.navitem:hover{background:var(--sunk)}
+.navitem.active{background:var(--blue-soft);color:var(--ink);font-weight:600}
+.navitem .num{width:22px;flex:none;font-size:12px;color:var(--ink3)}
+.navitem .lbl{flex:1;min-width:0}
+.main{min-width:0;padding:0 36px 96px}
+.wrap{max-width:1000px;margin:0 auto}
+
+/* Minimum-order bar motif: progress to decision */
+.minbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;padding:14px 0 10px;background:linear-gradient(var(--bg) 70%,transparent)}
+.minbar-inner{background:var(--bar);color:var(--bar-ink);border-radius:14px;padding:11px 16px;display:flex;align-items:center;gap:16px}
+.minbar-text{font-size:14px;flex:1;min-width:0}
+.minbar-text strong{font-weight:700}
+.minbar-track{flex:0 0 38%;height:8px;border-radius:99px;background:var(--bar-track);overflow:hidden;opacity:.9}
+.minbar-fill{height:100%;background:var(--blue);border-radius:99px;transition:width .5s ease}
+.minbar.done .minbar-fill{background:var(--pos)}
+
+/* Typography */
+h1{font-size:30px;line-height:1.3;letter-spacing:-.02em;margin:18px 0 10px;font-weight:700}
+h2{font-size:21px;line-height:1.4;letter-spacing:-.01em;margin:40px 0 12px;font-weight:700}
+h3{font-size:16px;margin:0 0 8px;font-weight:600}
+p{margin:0 0 12px;max-width:72ch}
+.lead{font-size:17px;color:var(--ink2);max-width:62ch}
+.muted{color:var(--ink3)}
+.small{font-size:13px}
+.view{display:none}
+.view.active{display:block}
+
+/* Surfaces */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px 22px;margin:14px 0}
+.card.sunk{background:var(--sunk)}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+
+/* Experiment header */
+.xhead{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px 22px;margin:16px 0}
+.xhead-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.xhead-title{font-size:19px;font-weight:700;flex:1;min-width:220px}
+.xmeta{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:14px}
+.xmeta div{font-size:13px;color:var(--ink3)}
+.xmeta b{display:block;color:var(--ink);font-size:14px;font-weight:600}
+
+/* Badges */
+.badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:3px 9px;border-radius:99px;white-space:nowrap;background:var(--sunk);color:var(--ink2);border:1px solid var(--line)}
+.badge::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;opacity:.8}
+.badge.draft{color:var(--ink3)}
+.badge.run{color:var(--blue);background:var(--blue-soft);border-color:transparent}
+.badge.warn{color:var(--warn);background:var(--warn-soft);border-color:transparent}
+.badge.done{color:var(--pos);background:var(--pos-soft);border-color:transparent}
+.badge.bad{color:var(--neg);background:var(--neg-soft);border-color:transparent}
+.navitem .badge{font-size:11px;padding:2px 7px}
+.role{font-size:11px;font-weight:600;padding:2px 7px;border-radius:5px;white-space:nowrap}
+.role.P{background:var(--blue);color:#fff}
+.role.G{background:var(--warn-soft);color:var(--warn)}
+.role.S{background:var(--sunk);color:var(--ink2);border:1px solid var(--line)}
+
+/* Quality strip */
+.quality{display:flex;gap:10px;align-items:flex-start;border-radius:12px;padding:12px 16px;margin:12px 0;font-size:14px}
+.quality.ok{background:var(--pos-soft);color:var(--ink)}
+.quality.ng{background:var(--warn-soft);color:var(--ink)}
+.quality .ic{font-weight:700;flex:none}
+.quality.ok .ic{color:var(--pos)}
+.quality.ng .ic{color:var(--warn)}
+
+/* Buttons & inputs */
+.btn{display:inline-flex;align-items:center;gap:8px;border:1px solid transparent;background:var(--blue);color:#fff;
+  padding:9px 16px;border-radius:9px;font-weight:600;font-size:14px;cursor:pointer}
+.btn:hover{filter:brightness(1.07)}
+.btn.ghost{background:var(--surface);color:var(--ink);border-color:var(--line)}
+.btn.ghost:hover{background:var(--sunk);filter:none}
+.btn.sm{padding:6px 11px;font-size:13px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+label.fld{display:block;font-size:13px;color:var(--ink2);margin-bottom:10px}
+label.fld span{display:block;margin-bottom:4px;font-weight:500}
+input[type=number],input[type=text],select,textarea{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:14px}
+textarea{resize:vertical;min-height:64px;line-height:1.55}
+input[type=range]{width:100%;accent-color:var(--blue)}
+.opt{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:10px;padding:11px 13px;margin:8px 0;cursor:pointer;background:var(--surface)}
+.opt:hover{background:var(--sunk)}
+.opt input{margin-top:5px;accent-color:var(--blue)}
+.opt b{display:block;font-size:14px}
+.opt small{color:var(--ink3);font-size:13px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--surface)}
+.seg button{border:0;background:none;padding:7px 14px;font-size:13px;cursor:pointer;color:var(--ink2)}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button.on{background:var(--blue-soft);color:var(--ink);font-weight:600}
+
+/* Feedback */
+.fb{border-left:3px solid var(--line);background:var(--sunk);padding:10px 14px;border-radius:0 10px 10px 0;margin:8px 0;font-size:14px}
+.fb.good{border-color:var(--pos);background:var(--pos-soft)}
+.fb.partial{border-color:var(--warn);background:var(--warn-soft)}
+.fb.bad{border-color:var(--neg);background:var(--neg-soft)}
+.fb b{display:block;margin-bottom:2px}
+.fb p{margin:4px 0 0}
+.callout{border-radius:12px;padding:14px 16px;margin:12px 0;background:var(--blue-soft);font-size:14px}
+.callout.warn{background:var(--warn-soft)}
+.callout.neg{background:var(--neg-soft)}
+
+/* KPI */
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.kpi .k{font-size:12px;color:var(--ink3)}
+.kpi .v{font-size:22px;font-weight:700;letter-spacing:-.01em;line-height:1.3}
+.kpi .s{font-size:12px;color:var(--ink2)}
+.v.pos{color:var(--pos)}.v.neg{color:var(--neg)}.v.blue{color:var(--blue)}
+
+/* Readout table */
+.tscroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table.rt{width:100%;border-collapse:collapse;font-size:13.5px;min-width:820px}
+.rt th{text-align:left;font-weight:500;color:var(--ink3);font-size:12px;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+.rt td{padding:11px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+.rt tr:last-child td{border-bottom:0}
+.rt td.num{text-align:right;white-space:nowrap}
+.rt .mname{font-weight:600}
+.rt td:first-child{min-width:160px}
+.rt .mnote{display:block;font-size:12px;color:var(--ink3);font-weight:400}
+.verdict{font-weight:600;white-space:nowrap}
+.verdict.pos{color:var(--pos)}.verdict.neg{color:var(--neg)}.verdict.neu{color:var(--ink3)}.verdict.blue{color:var(--blue)}
+.locked{position:relative}
+.locked .tscroll{filter:grayscale(.7);opacity:.6;pointer-events:none}
+.locked::after{content:"SRM 해결 전에는 해석하지 마세요";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) rotate(-4deg);
+  background:var(--warn);color:#fff;font-weight:700;padding:8px 18px;border-radius:8px;font-size:15px;white-space:nowrap}
+
+/* Charts */
+.chart{width:100%;height:auto;display:block}
+.chart text{font-size:11px;fill:var(--ink3)}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--ink2);margin:4px 0 8px}
+.legend i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:middle;margin-right:6px}
+
+/* Choices */
+.choices{display:grid;gap:10px;margin:10px 0}
+.choice{text-align:left;border:1.5px solid var(--line);background:var(--surface);border-radius:12px;padding:13px 16px;cursor:pointer}
+.choice:hover{border-color:var(--blue)}
+.choice b{display:block;font-size:15px}
+.choice small{color:var(--ink3);font-size:13px}
+.choice.sel.good{border-color:var(--pos);background:var(--pos-soft)}
+.choice.sel.partial{border-color:var(--warn);background:var(--warn-soft)}
+.choice.sel.bad{border-color:var(--neg);background:var(--neg-soft)}
+
+/* Briefing mock */
+.phone{width:260px;max-width:100%;border:1px solid var(--line);border-radius:26px;background:var(--surface);padding:14px 12px 12px;margin:0 auto}
+.phone .scr{border-radius:16px;background:var(--sunk);height:300px;position:relative;overflow:hidden;padding:12px}
+.ph-item{height:46px;border-radius:10px;background:var(--surface);border:1px solid var(--line);margin-bottom:8px;display:flex;align-items:center;gap:10px;padding:0 10px;font-size:12px;color:var(--ink2)}
+.ph-item i{width:28px;height:28px;border-radius:7px;background:var(--line);flex:none}
+.ph-bar{position:absolute;left:10px;right:10px;bottom:10px;background:var(--bar);color:var(--bar-ink);border-radius:12px;padding:9px 12px;font-size:12px}
+.ph-bar .t{display:flex;justify-content:space-between;gap:8px;font-size:11.5px;white-space:nowrap}
+.ph-bar .tr{height:5px;border-radius:99px;background:var(--bar-track);margin-top:6px;overflow:hidden}
+.ph-bar .tr div{height:100%;width:75%;background:var(--blue)}
+.steps{list-style:none;padding:0;margin:0;counter-reset:s}
+.steps li{counter-increment:s;display:grid;grid-template-columns:32px 1fr auto;gap:10px;align-items:center;padding:11px 0;border-bottom:1px solid var(--line)}
+.steps li:last-child{border-bottom:0}
+.steps li::before{content:counter(s);width:26px;height:26px;border-radius:50%;background:var(--blue-soft);color:var(--blue);font-weight:700;font-size:13px;display:grid;place-items:center}
+.steps b{font-size:14px}
+.steps small{display:block;color:var(--ink3);font-size:12.5px}
+.tag{font-size:12px;color:var(--ink2);background:var(--sunk);border:1px solid var(--line);border-radius:6px;padding:2px 8px;white-space:nowrap}
+pre.doc{white-space:pre-wrap;background:var(--sunk);border:1px solid var(--line);border-radius:10px;padding:14px;font-size:13px;line-height:1.6;margin:0;font-family:inherit}
+hr.sep{border:0;border-top:1px solid var(--line);margin:22px 0}
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--bar);color:var(--bar-ink);padding:10px 18px;border-radius:10px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:50}
+.toast.show{opacity:1}
+.bars{display:grid;gap:10px}
+.hbar{display:grid;grid-template-columns:190px 1fr 64px;gap:10px;align-items:center;font-size:13.5px}
+.hbar .tr{height:22px;background:var(--sunk);border-radius:6px;overflow:hidden;border:1px solid var(--line)}
+.hbar .tr div{height:100%;border-radius:5px;transition:width .6s ease}
+.hbar b{text-align:right}
+
+@media (max-width:880px){
+  .app{display:block}
+  .nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:30;height:auto;display:flex;gap:4px;overflow-x:auto;padding:8px 10px;border-right:0;border-bottom:1px solid var(--line)}
+  .brand,.navgroup{display:none}
+  .navitem{flex:none;width:auto;padding:7px 10px;font-size:13px}
+  .navitem .badge,.navitem .num{display:none}
+  .kpi .v{font-size:18px}
+  .main{padding:0 16px 80px}
+  .minbar{top:calc(env(safe-area-inset-top,0px) + 50px)}
+  .minbar-track{flex-basis:28%}
+  .grid2,.grid3{grid-template-columns:1fr}
+  .grid4,.xmeta{grid-template-columns:repeat(2,minmax(0,1fr))}
+  h1{font-size:24px}
+  .hbar{grid-template-columns:120px 1fr 54px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+<nav class="nav" aria-label="실습 단계">
+  <div class="brand"><div class="logo">A/B</div><div><b>퀵마트 실험실</b><small>최소주문금액바 실습</small></div></div>
+  <button class="navitem" data-go="brief"><span class="num">·</span><span class="lbl">브리핑</span></button>
+  <div class="navgroup">설계 실습 30분</div>
+  <button class="navitem" data-go="p1d"><span class="num">1</span><span class="lbl">P1 설계</span><span class="badge draft" id="st-p1d">초안</span></button>
+  <div class="navgroup">해석 실습 45분</div>
+  <button class="navitem" data-go="p1r"><span class="num">2</span><span class="lbl">P1 실행</span><span class="badge draft" id="st-p1r">대기</span></button>
+  <button class="navitem" data-go="p1o"><span class="num">3</span><span class="lbl">P1 결과</span><span class="badge run" id="st-p1o">분석 중</span></button>
+  <button class="navitem" data-go="p2"><span class="num">4</span><span class="lbl">P2 확대</span><span class="badge warn" id="st-p2">SRM 경고</span></button>
+  <button class="navitem" data-go="p3"><span class="num">5</span><span class="lbl">P3 혜택 넛지</span><span class="badge run" id="st-p3">분석 중</span></button>
+  <button class="navitem" data-go="p4"><span class="num">6</span><span class="lbl">P4 추천 상품</span><span class="badge run" id="st-p4">분석 중</span></button>
+  <div class="navgroup">함정과 공유 30분</div>
+  <button class="navitem" data-go="lab"><span class="num">7</span><span class="lbl">함정 연구소</span></button>
+  <button class="navitem" data-go="memo"><span class="num">8</span><span class="lbl">결정 메모</span></button>
+</nav>
+
+<main class="main">
+<div class="wrap">
+<div class="minbar" id="minbar"><div class="minbar-inner">
+  <div class="minbar-text" id="minbar-text"></div>
+  <div class="minbar-track"><div class="minbar-fill" id="minbar-fill" style="width:0"></div></div>
+</div></div>
+
+<!-- ===================== BRIEF ===================== -->
+<section class="view" id="v-brief">
+  <h1>최소주문금액을 못 채워서 떠나는 고객, 어떻게 붙잡을까요?</h1>
+  <p class="lead">여러분은 가상 퀵커머스 ‘퀵마트’의 PM이에요. 최소주문금액바라는 작은 UI 하나로 네 번의 A/B 테스트를 이어가며, 설계부터 배포 결정까지 직접 해봅니다.</p>
+
+  <div class="grid2" style="align-items:center">
+    <div>
+      <div class="card">
+        <h3>퀵마트의 상황</h3>
+        <p class="small" style="margin:0">최소주문금액은 15,000원이에요. 장바구니에 상품을 담은 고객 중 61%가 주문 없이 떠나고, 이탈 고객의 절반 이상은 최소주문금액을 못 채운 상태였어요. 지금은 금액을 채웠는지 보려면 장바구니 화면까지 들어가야 해요.</p>
+      </div>
+      <div class="card">
+        <h3>아이디어</h3>
+        <p class="small" style="margin:0">상품을 둘러보는 화면 하단에 ‘지금 얼마 담았고, 얼마 더 담으면 주문할 수 있는지’를 실시간으로 보여주는 바를 띄우면 어떨까요?</p>
+      </div>
+    </div>
+    <div>
+      <div class="phone" aria-hidden="true"><div class="scr">
+        <div class="ph-item"><i></i>유기농 바나나 2입 · 3,480원</div>
+        <div class="ph-item"><i></i>그릭요거트 400g · 4,900원</div>
+        <div class="ph-item"><i></i>제주 삼다수 2L · 1,200원</div>
+        <div class="ph-item"><i></i>냉동 만두 1kg · 7,980원</div>
+        <div class="ph-bar"><div class="t"><span>11,200원</span><b>3,800원 더 담으면 주문 가능</b></div><div class="tr"><div></div></div></div>
+      </div></div>
+      <p class="small muted" style="text-align:center;margin-top:8px">최소주문금액바. 이 사이트 상단의 진행 바도 같은 모양이에요.</p>
+    </div>
+  </div>
+
+  <h2>실습 순서</h2>
+  <div class="card">
+    <ol class="steps">
+      <li><div><b>P1 실험 설계</b><small>가설, 지표, 실험 단위, 표본 크기를 정하고 설계서를 만들어요</small></div><span class="tag">설계 30분</span></li>
+      <li><div><b>P1 실행과 모니터링</b><small>A/A 테스트와 실시간 대시보드로 ‘중간에 훔쳐보기’의 위험을 겪어봐요</small></div><span class="tag">해석 45분</span></li>
+      <li><div><b>P1 결과</b><small>명확한 결과를 읽고 배포 여부를 정해요</small></div><span class="tag">해석</span></li>
+      <li><div><b>P2 전면 확대</b><small>SRM 경고, 오른 전환율과 제자리인 거래액 사이에서 판단해요</small></div><span class="tag">해석</span></li>
+      <li><div><b>P3 혜택 넛지</b><small>아무것도 안 움직인 결과, 정말 실패일까요?</small></div><span class="tag">해석</span></li>
+      <li><div><b>P4 추천 상품</b><small>세 그룹, 열네 개의 검정. 우연히 걸린 지표를 걸러내요</small></div><span class="tag">해석</span></li>
+      <li><div><b>함정 연구소</b><small>Peeking, 심슨의 역설, SRM을 직접 돌려봐요</small></div><span class="tag">함정 30분</span></li>
+      <li><div><b>결정 메모</b><small>조별 결정을 정리해 발표해요</small></div><span class="tag">공유</span></li>
+    </ol>
+  </div>
+
+  <div class="card sunk small">
+    <b>사례 출처</b><br>
+    우아한형제들 기술블로그 「한 번 성공하니 다음도 쉬울 줄 알았다: 최소주문금액바 4번의 A/B실험」(최주연, 2026)을 실습용으로 각색했어요. 실험의 흐름과 발견은 원문을 따르지만, <b>이 사이트의 모든 숫자는 교육용 가상 데이터</b>예요. 실습이 끝나면 원문을 꼭 읽어보세요.<br>
+    <a href="https://techblog.woowahan.com/26379/" target="_blank" rel="noopener">원문 읽기</a>
+  </div>
+  <div class="row" style="margin-top:18px"><button class="btn" data-go="p1d">P1 실험 설계 시작하기</button></div>
+</section>
+
+<!-- ===================== P1 DESIGN ===================== -->
+<section class="view" id="v-p1d">
+  <div class="xhead">
+    <div class="xhead-top"><span class="xhead-title">P1. 가게홈에 최소주문금액바 도입</span><span class="badge draft" id="xb-p1d">초안</span></div>
+    <div class="xmeta"><div>단계<b>설계</b></div><div>대조군 A<b>현행 (바 없음)</b></div><div>실험군 B<b>최소주문금액바 노출</b></div><div>담당<b>우리 조</b></div></div>
+  </div>
+
+  <h2>1. 가설 쓰기</h2>
+  <p>배민 PM이 실제로 쓴 3단 템플릿이에요. 무엇을 바꾸면(Action), 사용자가 어떻게 행동하고(Behavior), 어떤 지표가 어느 방향으로 움직이는지(Impact)를 한 줄씩 써보세요.</p>
+  <div class="card">
+    <label class="fld"><span>Action: 무엇을 바꾸면</span><textarea id="h-a" placeholder="예) 탐색 화면에서 ○○를 보여주면"></textarea></label>
+    <label class="fld"><span>Behavior: 사용자는 어떻게 행동해서</span><textarea id="h-b" placeholder="예) ○○ 없이 바로 ○○로 이어져"></textarea></label>
+    <label class="fld"><span>Impact: 어떤 지표가 어떻게 변한다</span><textarea id="h-i" placeholder="예) ○○율이 감소할 것이다"></textarea></label>
+    <div class="row"><button class="btn ghost sm" id="h-reveal">배민이 쓴 가설 보기</button></div>
+    <div id="h-answer" hidden>
+      <div class="fb good"><b>원문 가설 (요약)</b>
+        Action: 가게홈에서 최소주문금액 달성 여부를 실시간으로 안내하면<br>
+        Behavior: 금액을 확인하러 장바구니를 오가지 않고 바로 주문으로 이어져<br>
+        Impact: 장바구니에 담고도 주문하지 않는 비율(장바구니 이탈률)이 감소할 것이다
+        <p class="small">좋은 가설의 조건: 바꾸는 것이 하나이고, 행동 메커니즘이 있고, 측정 가능한 지표와 방향이 적혀 있어요. ‘사용성이 좋아질 것이다’처럼 측정 못 하는 문장은 가설이 아니에요.</p>
+      </div>
+    </div>
+  </div>
+
+  <h2>2. 지표 역할 정하기</h2>
+  <p>메인(Primary)은 하나만. 가드레일은 ‘이게 나빠지면 메인이 올라도 배포 안 한다’는 지표예요.</p>
+  <div class="card">
+    <div id="metric-pick"></div>
+    <div class="row" style="margin-top:12px"><button class="btn sm" id="m-check">지표 구성 점검하기</button></div>
+    <div id="m-fb"></div>
+  </div>
+
+  <h2>3. 실험 단위와 범위</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3>무작위 배정 단위</h3>
+      <label class="opt"><input type="radio" name="unit" value="user"><div><b>사용자</b><small>한 사람은 실험 기간 내내 같은 그룹</small></div></label>
+      <label class="opt"><input type="radio" name="unit" value="session"><div><b>세션</b><small>앱을 열 때마다 새로 배정</small></div></label>
+      <label class="opt"><input type="radio" name="unit" value="page"><div><b>페이지뷰</b><small>화면을 볼 때마다 새로 배정</small></div></label>
+      <div id="unit-fb"></div>
+    </div>
+    <div class="card">
+      <h3>첫 실험의 범위</h3>
+      <label class="opt"><input type="radio" name="scope" value="small"><div><b>안드로이드 + 가게홈만</b><small>하루 약 17,200명 유입</small></div></label>
+      <label class="opt"><input type="radio" name="scope" value="all"><div><b>전 OS + 전 탐색 화면</b><small>하루 약 52,000명 유입, 개발 공수 2배</small></div></label>
+      <div id="scope-fb"></div>
+    </div>
+  </div>
+
+  <h2>4. 표본 크기와 기간</h2>
+  <p>메인 지표가 장바구니 이탈률이면 분모는 ‘장바구니에 담은 사용자’예요. 그래서 유입 사용자 중 장바구니 담기 비율까지 반영해야 해요.</p>
+  <div class="card">
+    <div class="grid3">
+      <label class="fld"><span>현재 장바구니 이탈률 (%)</span><input type="number" id="c-base" value="61" step="0.5" min="1" max="99"></label>
+      <label class="fld"><span>최소 탐지 효과 MDE (%p 감소)</span><input type="number" id="c-mde" value="1.5" step="0.1" min="0.1" max="20"></label>
+      <label class="fld"><span>유입 중 장바구니 담기 비율 (%)</span><input type="number" id="c-cart" value="32" step="1" min="1" max="100"></label>
+      <label class="fld"><span>유의수준 α</span><select id="c-alpha"><option value="0.05" selected>0.05</option><option value="0.01">0.01</option><option value="0.1">0.10</option></select></label>
+      <label class="fld"><span>검정력 (1−β)</span><select id="c-power"><option value="0.8" selected>80%</option><option value="0.9">90%</option><option value="0.7">70%</option></select></label>
+      <label class="fld"><span>범위 트래픽 중 실험 투입 비율 (%)</span><input type="number" id="c-alloc" value="100" step="5" min="5" max="100"></label>
+    </div>
+    <div class="grid4" id="c-out" style="margin-top:6px"></div>
+    <div id="c-note"></div>
+    <details style="margin-top:10px"><summary class="small">MDE를 바꾸면 기간이 어떻게 달라질까요?</summary><div class="tscroll" id="c-table" style="margin-top:8px"></div></details>
+  </div>
+
+  <h2>5. 실험 설계서</h2>
+  <div class="card">
+    <pre class="doc" id="doc"></pre>
+    <div class="row" style="margin-top:12px">
+      <button class="btn ghost sm" id="doc-copy">설계서 복사</button>
+      <button class="btn" id="doc-done">설계 확정하고 실험 시작</button>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== P1 RUN ===================== -->
+<section class="view" id="v-p1r">
+  <div class="xhead">
+    <div class="xhead-top"><span class="xhead-title">P1. 실행과 모니터링</span><span class="badge run">실행 중</span></div>
+    <div class="xmeta"><div>범위<b>안드로이드 + 가게홈</b></div><div>배정<b>사용자 단위 50:50</b></div><div>램프업<b>10% → 50% → 100%</b></div><div>계획 기간<b>14일</b></div></div>
+  </div>
+  <div class="row" style="margin:6px 0 4px"><div class="seg" id="run-tab"><button data-k="aa" class="on">A/A 테스트</button><button data-k="p1">P1 본 실험</button></div></div>
+  <div id="run-intro"></div>
+  <div class="card">
+    <div class="row" style="justify-content:space-between">
+      <b id="run-day">1일차</b>
+      <div class="row"><button class="btn ghost sm" id="run-play">재생</button><button class="btn ghost sm" id="run-reset">처음으로</button></div>
+    </div>
+    <input type="range" id="run-slider" min="1" max="14" value="1" aria-label="실험 일차">
+    <div class="grid4" id="run-kpi" style="margin-top:12px"></div>
+  </div>
+  <div class="grid2">
+    <div class="card"><h3>누적 p-value</h3><div class="legend"><span><i style="background:var(--blue)"></i>p-value</span><span><i style="background:var(--neg)"></i>0.05 기준선</span></div><div id="run-c1"></div></div>
+    <div class="card"><h3 id="run-c2t">일별 차이 (%p)</h3><div class="legend" id="run-c2l"></div><div id="run-c2"></div></div>
+  </div>
+  <div id="run-alert"></div>
+  <div id="run-q"></div>
+</section>
+
+<!-- ===================== P1 READOUT ===================== -->
+<section class="view" id="v-p1o">
+  <div class="xhead">
+    <div class="xhead-top"><span class="xhead-title">P1. 가게홈 최소주문금액바 결과</span><span class="badge run" id="xb-p1o">분석 중</span></div>
+    <div class="xmeta"><div>기간<b>14일</b></div><div>범위<b>안드로이드 + 가게홈</b></div><div>배정 단위<b>사용자</b></div><div>분석 기준<b>양측, α = 0.05</b></div></div>
+  </div>
+  <p class="muted small">Readout은 항상 같은 순서로 읽어요. 데이터 품질(SRM) → 메인 지표 → 가드레일 → 보조 지표 → 결정.</p>
+  <div id="p1o-q"></div>
+  <div class="card"><div class="tscroll" id="p1o-t"></div></div>
+  <h2>신규성 효과 점검</h2>
+  <div class="card" id="p1o-nov"></div>
+  <h2>결정</h2>
+  <div class="choices" id="p1o-ch"></div>
+  <div id="p1o-fb"></div>
+</section>
+
+<!-- ===================== P2 ===================== -->
+<section class="view" id="v-p2">
+  <div class="xhead">
+    <div class="xhead-top"><span class="xhead-title">P2. 전 탐색 화면, 전 OS로 확대</span><span class="badge warn" id="xb-p2">SRM 경고</span></div>
+    <div class="xmeta"><div>기간<b>14일</b></div><div>범위<b>전 OS + 전 탐색 화면</b></div><div>배정<b>사용자 단위 50:50</b></div><div>가설<b>P1 효과가 전체에서 재현된다</b></div></div>
+  </div>
+  <div id="p2-body"></div>
+</section>
+
+<!-- ===================== P3 ===================== -->
+<section class="view" id="v-p3">
+  <div class="xhead">
+    <div class="xhead-top"><span class="xhead-title">P3. 혜택 넛지 도입</span><span class="badge run" id="xb-p3">분석 중</span></div>
+    <div class="xmeta"><div>기간<b>14일</b></div><div>메인 지표<b>커머스 주문전환율</b></div><div>B그룹 변경점<b>“N원 더 담으면 N원 할인”</b></div><div>노출 조건<b>고허들 쿠폰 보유 + 최소금액 달성</b></div></div>
+  </div>
+  <div class="callout small">가설: 최소주문금액바에 혜택과 업셀링 문구를 함께 보여주면, 혜택을 받으려고 더 담아서 주문전환율과 장바구니 금액이 함께 오를 것이다.</div>
+  <div id="p3-q"></div>
+  <div class="card"><div class="tscroll" id="p3-t"></div></div>
+  <h2>왜 아무것도 안 움직였을까요?</h2>
+  <div class="card" id="p3-why"></div>
+  <h2>트리거 분석: 노출된 사람만 보면?</h2>
+  <p>노출 조건을 만족한 사람만 따로 보고 싶어요. 두 가지 비교 방법 중 무엇이 맞을까요?</p>
+  <div class="row"><div class="seg" id="p3-seg"><button data-k="wrong">B그룹 노출자 vs B그룹 미노출자</button><button data-k="right">A·B 양쪽의 조건 충족자끼리</button></div></div>
+  <div id="p3-trig"></div>
+  <h2>결정</h2>
+  <div class="choices" id="p3-ch"></div>
+  <div id="p3-fb"></div>
+</section>
+
+<!-- ===================== P4 ===================== -->
+<section class="view" id="v-p4">
+  <div class="xhead">
+    <div class="xhead-top"><span class="xhead-title">P4. 부족한 금액만큼 저단가 상품 추천</span><span class="badge run" id="xb-p4">분석 중</span></div>
+    <div class="xmeta"><div>그룹<b>A · B · C (1:1:1)</b></div><div>B<b>추천 넛지 항상 노출</b></div><div>C<b>부족 금액 8천 원 이하만</b></div><div>메인 지표<b>커머스 주문전환율</b></div></div>
+  </div>
+  <div class="callout small">가설: 부족한 금액에 맞는 저단가 상품을 바로 추천하면 추가 탐색 없이 최소주문금액을 채워 주문전환율이 오를 것이다. C안은 ‘부족 금액이 크면 넛지가 부담스럽다’는 사용자 테스트 피드백에서 나왔어요.</div>
+  <div id="p4-q"></div>
+  <div class="row" style="margin:10px 0"><span class="small muted">다중검정 보정</span><div class="seg" id="p4-adj"><button data-k="none" class="on">보정 없음</button><button data-k="bonf">Bonferroni</button><button data-k="bh">Benjamini-Hochberg</button></div></div>
+  <div class="card"><h3>B vs A</h3><div class="tscroll" id="p4-tb"></div></div>
+  <div class="card"><h3>C vs A</h3><div class="tscroll" id="p4-tc"></div></div>
+  <div id="p4-adjnote"></div>
+  <h2>결정</h2>
+  <div class="choices" id="p4-ch"></div>
+  <div id="p4-fb"></div>
+</section>
+
+<!-- ===================== LAB ===================== -->
+<section class="view" id="v-lab">
+  <h1>함정 연구소</h1>
+  <p class="lead">Readout에서 스쳐 지나간 함정들을 직접 돌려봐요.</p>
+
+  <h2>Peeking: 매일 확인하다 유의하면 멈추면?</h2>
+  <p>효과가 전혀 없는 A/A 실험을 수백 번 돌려요. 끝에 한 번만 보는 것과, 매일 보다가 p &lt; 0.05가 뜨는 순간 멈추는 것의 위양성률을 비교해요.</p>
+  <div class="card">
+    <div class="row" style="justify-content:space-between">
+      <label class="fld" style="margin:0;min-width:220px"><span>실험 기간 (매일 1회 확인)</span>
+        <select id="pk-days"><option value="7">7일</option><option value="14" selected>14일</option><option value="28">28일</option></select></label>
+      <button class="btn" id="pk-run">A/A 실험 400번 돌리기</button>
+    </div>
+    <div id="pk-out" style="margin-top:14px"></div>
+  </div>
+
+  <h2>심슨의 역설: 램프업 중 비율을 바꿨다면</h2>
+  <p>첫 주는 B에 10%만 배정했다가, 둘째 주에 50%로 늘렸어요. 그런데 둘째 주는 마침 대형 프로모션 주간이었어요.</p>
+  <div class="card">
+    <div class="row"><div class="seg" id="sp-seg"><button data-k="pool" class="on">전체 기간 합쳐 보기</button><button data-k="split">기간별로 보기</button></div></div>
+    <div id="sp-out" style="margin-top:12px"></div>
+  </div>
+
+  <h2>SRM 계산기</h2>
+  <p>설계한 배정 비율과 실제 사용자 수가 우연 이상으로 다른지 확인해요. 실무에서는 p &lt; 0.001이면 SRM으로 보고 결과 해석을 멈춰요.</p>
+  <div class="card">
+    <div class="grid3">
+      <label class="fld"><span>A그룹 사용자 수</span><input type="number" id="srm-a" value="500000"></label>
+      <label class="fld"><span>B그룹 사용자 수</span><input type="number" id="srm-b" value="494000"></label>
+      <label class="fld"><span>설계한 A 비율 (%)</span><input type="number" id="srm-r" value="50" min="1" max="99"></label>
+    </div>
+    <div id="srm-out"></div>
+  </div>
+</section>
+
+<!-- ===================== MEMO ===================== -->
+<section class="view" id="v-memo">
+  <h1>결정 메모</h1>
+  <p class="lead">각 실험의 결정과 근거를 정리해 발표해요. ‘유의하다’에서 멈추지 말고, 효과 크기 × 비용 × 리스크로 말해보세요.</p>
+  <div id="memo-list"></div>
+  <div class="card">
+    <h3>발표용 요약</h3>
+    <pre class="doc" id="memo-doc"></pre>
+    <div class="row" style="margin-top:12px"><button class="btn ghost sm" id="memo-copy">요약 복사</button><button class="btn ghost sm" id="memo-reset">모든 진행 초기화</button></div>
+  </div>
+  <div class="card sunk small">
+    <b>원문의 마지막 메시지</b><br>
+    네 번 중 메인 지표가 오른 건 두 번이었지만, 원문 작성자는 실험의 가치를 ‘다음 가설로 이어진 학습’에서 찾았어요. 오늘 결정한 실험 중 가장 많이 배운 실험은 무엇이었나요? 이론 수업의 ‘승률보다 학습률’과 연결해서 이야기해보세요.
+  </div>
+</section>
+
+</div>
+</main>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script>
+(function(){
+"use strict";
+/* ---------- utils ---------- */
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const fmt=n=>Math.round(n).toLocaleString('ko-KR');
+const pct=(x,d=2)=>(x*100).toFixed(d)+'%';
+const sg=x=>{const n=parseFloat(String(x).replace(/,/g,''));const s=String(x).replace('-','');return (n>0?'+':n<0?'−':'')+s};
+const fp=p=>p<0.0001?'< 0.0001':p.toFixed(4);
+function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');clearTimeout(toast._t);toast._t=setTimeout(()=>t.classList.remove('show'),1800)}
+function copyText(txt){
+  const done=()=>toast('복사했어요');
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(done).catch(()=>fallback())}else fallback();
+  function fallback(){const ta=document.createElement('textarea');ta.value=txt;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();
+    try{document.execCommand('copy');done()}catch(e){toast('복사가 막혀 있어요. 텍스트를 직접 선택해 복사하세요')}ta.remove()}
+}
+
+/* ---------- storage ---------- */
+const KEY='quickmart-ab-lab-v1';
+let S={};
+try{S=JSON.parse(localStorage.getItem(KEY)||'{}')||{}}catch(e){S={}}
+S.design=S.design||{};S.dec=S.dec||{};S.notes=S.notes||{};
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+
+/* ---------- random ---------- */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function gaussF(r){return()=>{let u=0,v=0;while(u===0)u=r();while(v===0)v=r();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v)}}
+function binom(n,p,g){if(n<=0)return 0;const m=n*p,s=Math.sqrt(n*p*(1-p));return Math.max(0,Math.min(n,Math.round(m+s*g())))}
+
+/* ---------- stats ---------- */
+function normCdf(x){const a1=0.254829592,a2=-0.284496736,a3=1.421413741,a4=-1.453152027,a5=1.061405429,p=0.3275911;
+  const s=x<0?-1:1,z=Math.abs(x)/Math.SQRT2,t=1/(1+p*z);const y=1-((((a5*t+a4)*t+a3)*t+a2)*t+a1)*t*Math.exp(-z*z);return 0.5*(1+s*y)}
+function normInv(p){const a=[-39.69683028665376,220.9460984245205,-275.9285104469687,138.357751867269,-30.66479806614716,2.506628277459239],
+  b=[-54.47609879822406,161.5858368580409,-155.6989798598866,66.80131188771972,-13.28068155288572],
+  c=[-0.007784894002430293,-0.3223964580411365,-2.400758277161838,-2.549732539343734,4.374664141464968,2.938163982698783],
+  d=[0.007784695709041462,0.3224671290700398,2.445134137142996,3.754408661907416],pl=0.02425;let q,r;
+  if(p<pl){q=Math.sqrt(-2*Math.log(p));return(((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5])/((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1)}
+  if(p>1-pl){q=Math.sqrt(-2*Math.log(1-p));return-(((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5])/((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1)}
+  q=p-0.5;r=q*q;return(((((a[0]*r+a[1])*r+a[2])*r+a[3])*r+a[4])*r+a[5])*q/(((((b[0]*r+b[1])*r+b[2])*r+b[3])*r+b[4])*r+1)}
+function propTest(a,b){const pA=a.x/a.n,pB=b.x/b.n,d=pB-pA,pool=(a.x+b.x)/(a.n+b.n);
+  const se0=Math.sqrt(pool*(1-pool)*(1/a.n+1/b.n)),se=Math.sqrt(pA*(1-pA)/a.n+pB*(1-pB)/b.n);const z=d/se0;
+  return{vA:pA,vB:pB,d,lo:d-1.96*se,hi:d+1.96*se,z,p:2*(1-normCdf(Math.abs(z))),rel:d/pA,relLo:(d-1.96*se)/pA,relHi:(d+1.96*se)/pA,win:normCdf(d/se)}}
+function meanTest(a,b){const d=b.m-a.m,se=Math.sqrt(a.sd*a.sd/a.n+b.sd*b.sd/b.n),z=d/se;
+  return{vA:a.m,vB:b.m,d,lo:d-1.96*se,hi:d+1.96*se,z,p:2*(1-normCdf(Math.abs(z))),rel:d/a.m,relLo:(d-1.96*se)/a.m,relHi:(d+1.96*se)/a.m,win:normCdf(d/se)}}
+function srm(counts,ratios){const N=counts.reduce((s,x)=>s+x,0);let chi=0;counts.forEach((c,i)=>{const e=N*ratios[i];chi+=(c-e)*(c-e)/e});
+  const df=counts.length-1;const p=df===1?2*(1-normCdf(Math.sqrt(chi))):Math.exp(-chi/2);return{chi,p,N}}
+function ssProp(p1,p2,alpha,power){const za=normInv(1-alpha/2),zb=normInv(power),pb=(p1+p2)/2;
+  return Math.ceil(Math.pow(za*Math.sqrt(2*pb*(1-pb))+zb*Math.sqrt(p1*(1-p1)+p2*(1-p2)),2)/Math.pow(p1-p2,2))}
+function powerProp(p1,d,n,alpha){const se=Math.sqrt(2*p1*(1-p1)/n);return normCdf(Math.abs(d)/se-normInv(1-alpha/2))}
+function sigFlags(ps,alpha,method){const m=ps.length;
+  if(method==='bonf')return ps.map(p=>p<alpha/m);
+  if(method==='bh'){const idx=ps.map((p,i)=>[p,i]).sort((x,y)=>x[0]-y[0]);let k=-1;idx.forEach(([p],r)=>{if(p<=(r+1)*alpha/m)k=r});
+    const f=ps.map(()=>false);idx.forEach(([p,i],r)=>{if(r<=k)f[i]=true});return f}
+  return ps.map(p=>p<alpha)}
+
+/* ---------- chart ---------- */
+function lineChart(o){const W=640,H=o.height||220,L=46,R=14,T=14,B=26;const n=o.x.length;
+  const vals=o.series.flatMap(s=>s.values.filter(v=>v!=null&&isFinite(v)));
+  let lo=o.yMin!=null?o.yMin:Math.min(...vals),hi=o.yMax!=null?o.yMax:Math.max(...vals);
+  (o.hlines||[]).forEach(h=>{if(o.yMin==null)lo=Math.min(lo,h.y);if(o.yMax==null)hi=Math.max(hi,h.y)});
+  if(!isFinite(lo)||!isFinite(hi)){lo=0;hi=1}if(lo===hi){lo-=1;hi+=1}
+  const pad=(hi-lo)*0.08;if(o.yMin==null)lo-=pad;if(o.yMax==null)hi+=pad;
+  const X=i=>L+(n<=1?0:i*(W-L-R)/(n-1)),Y=v=>T+(hi-v)*(H-T-B)/(hi-lo);const yf=o.yFmt||(v=>v.toFixed(2));
+  let s=`<svg viewBox="0 0 ${W} ${H}" class="chart" role="img" aria-label="${o.label||'차트'}">`;
+  for(let k=0;k<=4;k++){const v=lo+(hi-lo)*k/4,y=Y(v);s+=`<line x1="${L}" x2="${W-R}" y1="${y}" y2="${y}" style="stroke:var(--line)" stroke-width="1"/><text x="${L-6}" y="${y+4}" text-anchor="end">${yf(v)}</text>`}
+  const step=Math.max(1,Math.ceil(n/10));for(let i=0;i<n;i+=step)s+=`<text x="${X(i)}" y="${H-7}" text-anchor="middle">${o.x[i]}</text>`;
+  (o.hlines||[]).forEach(h=>{const y=Y(h.y);s+=`<line x1="${L}" x2="${W-R}" y1="${y}" y2="${y}" style="stroke:${h.color}" stroke-width="1.5" stroke-dasharray="5 4"/>`;
+    if(h.label)s+=`<text x="${W-R-2}" y="${y-5}" text-anchor="end" style="fill:${h.color}">${h.label}</text>`});
+  (o.bands||[]).forEach(b=>{s+=`<rect x="${L}" width="${W-L-R}" y="${Y(b.hi)}" height="${Y(b.lo)-Y(b.hi)}" style="fill:${b.color}" opacity=".35"/>`});
+  o.series.forEach(se=>{let d='',pen=false;se.values.forEach((v,i)=>{if(v==null||!isFinite(v)){pen=false;return}const c=Math.max(Math.min(v,hi),lo);d+=(pen?'L':'M')+X(i).toFixed(1)+' '+Y(c).toFixed(1)+' ';pen=true});
+    s+=`<path d="${d}" fill="none" style="stroke:${se.color}" stroke-width="${se.w||2.2}" stroke-linejoin="round" stroke-linecap="round" opacity="${se.o||1}"/>`;
+    if(se.dot){let li=-1;se.values.forEach((v,i)=>{if(v!=null)li=i});if(li>=0)s+=`<circle cx="${X(li)}" cy="${Y(Math.max(Math.min(se.values[li],hi),lo))}" r="4" style="fill:${se.color}"/>`}});
+  return s+'</svg>'}
+
+/* ---------- readout table ---------- */
+const ROLE={P:'메인',G:'가드레일',S:'보조'};
+function test(r){return r.type==='prop'?propTest(r.a,r.b):meanTest(r.a,r.b)}
+function vfmt(r,v){return r.type==='prop'?pct(v,2):fmt(v)+'원'}
+function dfmt(r,d){return r.type==='prop'?sg((d*100).toFixed(2))+'%p':sg(fmt(d))+'원'}
+function nfmt(r,side){const o=r[side];return r.type==='prop'?`${fmt(o.x)} / ${fmt(o.n)}`:`n = ${fmt(o.n)}`}
+function ciSvg(res,scale,color){const W=150,H=22,x=v=>W/2+v/scale*(W/2-6);const cl=v=>Math.max(4,Math.min(W-4,v));const lo=cl(x(res.relLo)),hi=cl(x(res.relHi));
+  return `<svg viewBox="0 0 ${W} ${H}" width="150" height="22" aria-hidden="true"><line x1="${W/2}" x2="${W/2}" y1="2" y2="${H-2}" style="stroke:var(--ink3)" stroke-width="1"/>
+  <rect x="${Math.min(lo,hi)}" y="7" width="${Math.max(2,Math.abs(hi-lo))}" height="8" rx="4" style="fill:${color}" opacity=".35"/><circle cx="${cl(x(res.rel))}" cy="11" r="4" style="fill:${color}"/></svg>`}
+function renderTable(el,rows,opt={}){const res=rows.map(test);const flags=opt.flags||res.map(r=>r.p<0.05);
+  const focus=res.filter((r,i)=>flags[i]||rows[i].role==='P');const pool=focus.length?focus:res;const scale=Math.max(0.02,...pool.map(r=>Math.max(Math.abs(r.relLo),Math.abs(r.relHi))))*1.15;
+  const la=opt.la||'A 대조군',lb=opt.lb||'B 실험군';
+  let h=`<table class="rt"><thead><tr><th>지표</th><th>역할</th><th style="text-align:right">${la}</th><th style="text-align:right">${lb}</th><th style="text-align:right">차이 (상대)</th><th>95% 신뢰구간 (상대 변화)</th><th style="text-align:right">p-value</th><th style="text-align:right">실험군이 나을 확률</th><th>판정</th></tr></thead><tbody>`;
+  rows.forEach((r,i)=>{const t=res[i],sig=flags[i];let cls='neu',lab='차이 없음',col='var(--ink3)';
+    if(sig){if(r.better===0){cls='blue';lab=t.d>0?'증가':'감소';col='var(--blue)'}else if(Math.sign(t.d)===r.better){cls='pos';lab='개선';col='var(--pos)'}else{cls='neg';lab='악화';col='var(--neg)'}}
+    const win=r.better===-1?1-t.win:t.win;
+    h+=`<tr><td><span class="mname">${r.name}</span>${r.note?`<span class="mnote">${r.note}</span>`:''}</td><td><span class="role ${r.role}">${ROLE[r.role]}</span></td>
+    <td class="num">${vfmt(r,t.vA)}<span class="mnote">${nfmt(r,'a')}</span></td><td class="num">${vfmt(r,t.vB)}<span class="mnote">${nfmt(r,'b')}</span></td>
+    <td class="num">${dfmt(r,t.d)}<span class="mnote">${sg((t.rel*100).toFixed(1))}%</span></td>
+    <td>${ciSvg(t,scale,col)}<span class="mnote">${sg((t.relLo*100).toFixed(1))}% ~ ${sg((t.relHi*100).toFixed(1))}%</span></td>
+    <td class="num">${fp(t.p)}</td><td class="num">${r.better===0?'–':pct(win,1)}</td><td><span class="verdict ${cls}">${lab}</span></td></tr>`});
+  el.innerHTML=h+'</tbody></table>';return res}
+function qualityStrip(counts,ratios,labels){const r=srm(counts,ratios);const ok=r.p>=0.001;
+  const share=counts.map((c,i)=>`${labels[i]} ${fmt(c)}명 (${(c/r.N*100).toFixed(2)}%)`).join(', ');
+  return{ok,p:r.p,html:`<div class="quality ${ok?'ok':'ng'}"><span class="ic">${ok?'✓':'!'}</span><div><b>${ok?'데이터 품질 통과: SRM 없음':'SRM 감지: 배정 비율이 설계와 달라요'}</b><br>${share}. 설계 비율 ${ratios.map(x=>Math.round(x*1000)/10).join(':')} 대비 카이제곱 p ${r.p<0.0001?'':'= '}${fp(r.p)}${ok?'':' (기준 p < 0.001)'}</div></div>`}}
+
+/* ---------- decisions ---------- */
+function renderChoices(key,elC,elF,opts){
+  function draw(){const cur=S.dec[key];elC.innerHTML=opts.map((o,i)=>`<button class="choice ${cur===i?'sel '+o.g:''}" data-i="${i}"><b>${o.t}</b><small>${o.s}</small></button>`).join('');
+    elF.innerHTML=cur!=null?`<div class="fb ${opts[cur].g}"><b>${{good:'좋은 판단이에요',partial:'일리 있지만 한 가지 더',bad:'다시 생각해볼까요'}[opts[cur].g]}</b>${opts[cur].f}</div>${opts.explain?`<div class="card sunk small">${opts.explain}</div>`:''}`:'';
+    elC.querySelectorAll('.choice').forEach(b=>b.onclick=()=>{S.dec[key]=+b.dataset.i;save();draw();refreshStatus()})}
+  draw()}
+
+/* ---------- status & minbar ---------- */
+const DEC_KEYS=['p1o','p2','p3','p4'];
+function setBadge(ids,cls,txt){ids.forEach(id=>{const e=document.getElementById(id);if(e){e.className='badge '+cls;e.textContent=txt}})}
+function refreshStatus(){
+  setBadge(['st-p1d','xb-p1d'],S.design.done?'done':'draft',S.design.done?'설계 완료':'초안');
+  setBadge(['st-p1r'],S.runDone?'done':(S.design.done?'run':'draft'),S.runDone?'완료':(S.design.done?'실행 중':'대기'));
+  ['p1o','p3','p4'].forEach(k=>setBadge(['st-'+k,'xb-'+k],S.dec[k]!=null?'done':'run',S.dec[k]!=null?'결정 완료':'분석 중'));
+  if(S.dec.p2!=null)setBadge(['st-p2','xb-p2'],'done','결정 완료');else if(S.p2Fixed)setBadge(['st-p2','xb-p2'],'run','분석 중');else setBadge(['st-p2','xb-p2'],'warn','SRM 경고');
+  const n=DEC_KEYS.filter(k=>S.dec[k]!=null).length,left=4-n;
+  $('#minbar-fill').style.width=(n/4*100)+'%';$('#minbar').classList.toggle('done',left===0);
+  $('#minbar-text').innerHTML=left===0?'<strong>결정 4건 완료!</strong> 결정 메모를 정리해 발표하세요':`결정 <strong>${left}건</strong>만 더 하면 발표 준비 끝 <span style="opacity:.7">(${n}/4)</span>`;
+  if(currentView==='memo')renderMemo()}
+
+/* ---------- router ---------- */
+let currentView='brief';
+const VIEWS=['brief','p1d','p1r','p1o','p2','p3','p4','lab','memo'];
+function go(v){if(!VIEWS.includes(v))v='brief';currentView=v;$$('.view').forEach(e=>e.classList.toggle('active',e.id==='v-'+v));
+  $$('.navitem').forEach(e=>e.classList.toggle('active',e.dataset.go===v));
+  if(v==='memo')renderMemo();if(v==='p1r')drawRun();
+  if(location.hash!=='#'+v)history.replaceState(null,'','#'+v);window.scrollTo(0,0)}
+document.addEventListener('click',e=>{const t=e.target.closest('[data-go]');if(t){e.preventDefault();go(t.dataset.go)}});
+
+/* ================= P1 DESIGN ================= */
+const METRICS=[
+  {k:'abandon',n:'장바구니 이탈률',d:'장바구니에 담은 사용자 중 주문 안 한 비율'},
+  {k:'conv',n:'커머스 전체 주문전환율',d:'배정된 사용자 중 주문한 비율'},
+  {k:'aov',n:'평균주문금액',d:'주문 1건당 결제 금액'},
+  {k:'gmv',n:'인당 거래액 (GMV)',d:'배정 사용자 1인당 결제 금액'},
+  {k:'click',n:'최소주문금액바 클릭률',d:'바를 본 사용자 중 누른 비율'},
+  {k:'crash',n:'앱 크래시율',d:'배정 사용자 중 앱이 비정상 종료된 비율'},
+  {k:'load',n:'가게홈 로딩 시간',d:'화면 첫 렌더링까지 걸린 시간'}];
+function initDesign(){
+  const D=S.design;D.roles=D.roles||{};
+  $('#metric-pick').innerHTML=`<div class="tscroll"><table class="rt" style="min-width:560px"><thead><tr><th>지표</th><th>정의</th><th style="width:150px">역할</th></tr></thead><tbody>${
+    METRICS.map(m=>`<tr><td class="mname">${m.n}</td><td class="small muted">${m.d}</td><td><select data-m="${m.k}" aria-label="${m.n} 역할"><option value="">미사용</option><option value="P">메인</option><option value="G">가드레일</option><option value="S">보조</option></select></td></tr>`).join('')}</tbody></table></div>`;
+  $$('#metric-pick select').forEach(s=>{s.value=D.roles[s.dataset.m]||'';s.onchange=()=>{D.roles[s.dataset.m]=s.value;save();updateDoc()}});
+  ['a','b','i'].forEach(k=>{const el=$('#h-'+k);el.value=D['h'+k]||'';el.oninput=()=>{D['h'+k]=el.value;save();updateDoc()}});
+  $('#h-reveal').onclick=()=>{$('#h-answer').hidden=!$('#h-answer').hidden};
+  $('#m-check').onclick=checkMetrics;
+  $$('input[name=unit]').forEach(r=>{r.checked=D.unit===r.value;r.onchange=()=>{D.unit=r.value;save();unitFb();updateDoc()}});
+  $$('input[name=scope]').forEach(r=>{r.checked=D.scope===r.value;r.onchange=()=>{D.scope=r.value;save();scopeFb();calc()}});
+  ['base','mde','cart','alpha','power','alloc'].forEach(k=>{const el=$('#c-'+k);if(D['c'+k]!=null)el.value=D['c'+k];el.oninput=el.onchange=()=>{D['c'+k]=el.value;save();calc()}});
+  $('#doc-copy').onclick=()=>copyText($('#doc').textContent);
+  $('#doc-done').onclick=()=>{D.done=true;save();refreshStatus();toast('설계를 확정했어요. 실험을 시작합니다');go('p1r')};
+  unitFb();scopeFb();calc();
+}
+function checkMetrics(){const R=S.design.roles||{};const out=[];const by=r=>METRICS.filter(m=>R[m.k]===r).map(m=>m.k);
+  const P=by('P'),G=by('G'),Sx=by('S');
+  if(P.length===0)out.push(['bad','메인 지표가 없어요','배포 여부를 가를 지표 하나를 메인으로 정하세요.']);
+  if(P.length>1)out.push(['bad','메인 지표가 여러 개예요','메인이 여러 개면 “하나라도 오르면 성공”이 되어 위양성이 늘어요(다중검정). 하나만 남기고 나머지는 보조로 내리세요.']);
+  if(P.length===1){const p=P[0];
+    if(p==='abandon')out.push(['good','메인: 장바구니 이탈률','배민 P1도 이 지표를 메인으로 썼어요. 바가 직접 건드리는 행동(장바구니 확인 동선)에 가장 가깝고 민감도가 높아요.']);
+    if(p==='conv')out.push(['partial','메인: 주문전환율','틀린 선택은 아니에요(배민도 P3부터 메인으로 바꿨어요). 다만 분모가 전체 배정 사용자라 효과가 희석되어 P1처럼 작게 시작하는 실험에선 표본이 더 필요해요.']);
+    if(p==='click')out.push(['bad','메인: 바 클릭률','대조군에는 바가 없어서 두 그룹을 비교할 수 없어요. 게다가 클릭은 목표가 아니라 수단이라, 클릭을 올리는 쪽으로 최적화하면 본질을 놓쳐요(Goodhart’s Law).']);
+    if(p==='gmv'||p==='aov')out.push(['partial','메인: 금액 지표','금액 지표는 분산이 커서 민감도가 낮아요. 이 기능의 1차 목적이 ‘이탈 감소’라면 금액은 가드레일이나 보조가 더 맞아요. 이 선택은 P2에서 다시 등장해요.']);
+    if(p==='crash'||p==='load')out.push(['bad','메인: 시스템 지표','크래시나 로딩 시간은 “망가지지 않았나”를 보는 전형적인 가드레일이에요.'])}
+  if(!G.includes('crash')&&!G.includes('load'))out.push(['partial','시스템 가드레일이 없어요','새 UI가 앱을 느리게 하거나 크래시를 일으키면 지표 개선과 상관없이 배포하면 안 돼요. 앱 크래시율이나 로딩 시간을 가드레일로 두세요.']);
+  if(R.conv!=='G'&&R.conv!=='P')out.push(['partial','주문전환율을 챙기세요','이탈률이 줄어도 전체 주문이 줄면 의미 없어요. 배민은 주문전환율을 가드레일로 뒀어요.']);
+  if(R.aov==='S'||R.gmv==='S')out.push(['good','금액 지표를 보조로 두었어요','좋아요. P2에서 이 보조 지표가 중요한 발견을 만들어요.']);
+  if(R.click==='S')out.push(['good','바 클릭률은 보조로','처치군 내부 행동을 이해하는 진단용으로는 유용해요.']);
+  $('#m-fb').innerHTML=out.map(([g,t,d])=>`<div class="fb ${g}"><b>${t}</b>${d}</div>`).join('')}
+function unitFb(){const u=S.design.unit;const M={
+  user:['good','사용자 단위: 정답이에요','한 사람이 실험 기간 내내 같은 화면을 봐야 경험이 일관되고, 여러 세션에 걸친 주문 행동도 측정할 수 있어요. 앱에서는 보통 사용자 ID를 해싱해 그룹을 고정해요.'],
+  session:['bad','세션 단위는 위험해요','앱을 열 때마다 바가 보였다 사라지면 경험이 혼란스럽고, 같은 사람이 두 그룹에 섞여 서로 영향을 줘요(SUTVA 위반). 또 사용자 단위 지표를 세션 단위 배정으로 분석하면 분산이 과소추정돼요.'],
+  page:['bad','페이지뷰 단위는 이 기능에 맞지 않아요','한 번 둘러보는 중에도 바가 깜빡이게 돼요. 페이지뷰 배정은 검색 결과 순서처럼 화면 하나에서 완결되는 변경에만 써요.']};
+  $('#unit-fb').innerHTML=u?`<div class="fb ${M[u][0]}"><b>${M[u][1]}</b>${M[u][2]}</div>`:''}
+function scopeFb(){const u=S.design.scope;const M={
+  small:['good','작게 시작하기','배민도 첫 실험은 안드로이드와 가게홈으로 한정했어요. 리소스가 부족해도 빨리 검증할 수 있고 버그의 피해 범위도 작아요. 대신 iOS나 다른 화면에서도 같은 효과가 날지는 모르는 상태예요(외적 타당성). 그래서 P2가 필요해져요.'],
+  all:['partial','처음부터 전체로','표본이 빨리 모이는 장점이 있지만, 개발 공수가 두 배이고 문제가 생기면 모든 사용자가 영향을 받아요. 아이디어가 아직 검증 전이라면 작게 시작해 가능성을 보고 넓히는 편이 안전해요.']};
+  $('#scope-fb').innerHTML=u?`<div class="fb ${M[u][0]}"><b>${M[u][1]}</b>${M[u][2]}</div>`:''}
+let CALC={};
+function calc(){const v=k=>parseFloat($('#c-'+k).value);const base=v('base')/100,mde=v('mde')/100,cart=v('cart')/100,alpha=v('alpha'),power=v('power'),alloc=v('alloc')/100;
+  const traffic=S.design.scope==='all'?52000:17200;
+  if(!(base>0&&base<1&&mde>0&&base-mde>0&&cart>0&&alloc>0)){$('#c-out').innerHTML='<div class="fb bad" style="grid-column:1/-1"><b>입력값을 확인하세요</b>기준 이탈률보다 MDE가 작아야 하고, 모든 값은 0보다 커야 해요.</div>';return}
+  const n=ssProp(base,base-mde,alpha,power);const daily=traffic*alloc/2*cart;const days=n/daily;const rec=Math.max(14,Math.ceil(days/7)*7);
+  CALC={n,daily,days,rec,base,mde,alpha,power,traffic,alloc,cart};
+  $('#c-out').innerHTML=`<div class="kpi"><div class="k">그룹당 필요한 장바구니 사용자</div><div class="v blue">${fmt(n)}명</div></div>
+  <div class="kpi"><div class="k">그룹당 하루 장바구니 사용자</div><div class="v">${fmt(daily)}명</div><div class="s">${S.design.scope==='all'?'전체 범위':'안드로이드 + 가게홈'} 기준</div></div>
+  <div class="kpi"><div class="k">계산상 필요 기간</div><div class="v">${days.toFixed(1)}일</div></div>
+  <div class="kpi"><div class="k">권장 실험 기간</div><div class="v pos">${rec}일</div><div class="s">최소 2주, 주 단위로 올림</div></div>`;
+  $('#c-note').innerHTML=`<div class="callout small">${days<7?'계산상 일주일도 안 걸리지만, 요일마다 행동이 달라서 최소 한 주는 채워야 하고, 초반 신규성 효과가 가라앉는지 보려면 2주가 필요해요.':days>42?'6주 넘게 걸려요. MDE를 키우거나(더 큰 효과만 잡기), 범위를 넓히거나, 분산 축소 기법(CUPED)을 검토하세요.':'요일 효과와 신규성 효과를 고려해 최소 2주, 주 단위로 올렸어요.'}${S.design.scope?'':' 범위를 아직 고르지 않아서 안드로이드 + 가게홈 트래픽으로 계산했어요.'}</div>`;
+  const rows=[0.5,1,1.5,2,3].map(m=>{const nn=ssProp(base,base-m/100,alpha,power);return`<tr><td>${m}%p</td><td class="num">${fmt(nn)}명</td><td class="num">${(nn/daily).toFixed(1)}일</td></tr>`}).join('');
+  $('#c-table').innerHTML=`<table class="rt" style="min-width:360px"><thead><tr><th>MDE</th><th style="text-align:right">그룹당 표본</th><th style="text-align:right">필요 기간</th></tr></thead><tbody>${rows}</tbody></table><p class="small muted" style="margin-top:8px">MDE를 절반으로 줄이면 필요한 표본은 약 4배가 돼요.</p>`;
+  updateDoc()}
+function updateDoc(){const D=S.design,R=D.roles||{};const pick=r=>METRICS.filter(m=>R[m.k]===r).map(m=>m.n).join(', ')||'(미정)';
+  const U={user:'사용자',session:'세션',page:'페이지뷰'},SC={small:'안드로이드 + 가게홈',all:'전 OS + 전 탐색 화면'};const c=CALC;
+  $('#doc').textContent=`[실험 설계서] 퀵마트 최소주문금액바 P1
+
+가설
+  Action   : ${D.ha||'(작성 전)'}
+  Behavior : ${D.hb||'(작성 전)'}
+  Impact   : ${D.hi||'(작성 전)'}
+
+그룹        A 대조군(현행) / B 실험군(최소주문금액바), 50:50
+배정 단위   ${U[D.unit]||'(미정)'}
+범위        ${SC[D.scope]||'(미정)'}
+
+지표
+  메인      ${pick('P')}
+  가드레일  ${pick('G')}
+  보조      ${pick('S')}
+
+표본과 기간
+  기준 이탈률 ${c.base?pct(c.base,1):'-'}, MDE ${c.mde?(c.mde*100).toFixed(1)+'%p':'-'}, α ${c.alpha||'-'}, 검정력 ${c.power?c.power*100+'%':'-'}
+  그룹당 장바구니 사용자 ${c.n?fmt(c.n):'-'}명 → 계산상 ${c.days?c.days.toFixed(1):'-'}일 → 권장 ${c.rec||'-'}일
+
+배포 기준
+  데이터 품질(SRM) 통과 + 메인 지표 유의한 개선 + 가드레일 악화 없음 → 배포
+  메인 지표 변화 없음 → 검정력·노출 규모 점검 후 재실험 또는 종료`}
+
+/* ================= P1 RUN ================= */
+const RAMP=[0.1,0.5,1,1,1,1,1,1,1,1,1,1,1,1];
+function genP1(){const r=mulberry32(7331),g=gaussF(r);const out=[];
+  for(let d=0;d<14;d++){const wk=(d%7===5||d%7===6);const base=8600*RAMP[d]*(1+0.04*g());
+    const nA=Math.round(base+40*g()*RAMP[d]),nB=Math.round(base+40*g()*RAMP[d]);const cr=wk?0.34:0.32;
+    const cA=binom(nA,cr,g),cB=binom(nB,cr,g);const pA=0.61-(wk?0.012:0);const eff=-0.024-0.036*Math.exp(-d/2.2);
+    const abA=binom(cA,pA,g),abB=binom(cB,pA+eff,g);
+    out.push({nA,nB,cA,cB,abA,abB,oA:cA-abA,oB:cB-abB,aovA:24850+160*g(),aovB:24790+160*g(),crA:binom(nA,0.0042,g),crB:binom(nB,0.0044,g)})}return out}
+function genAA(seed){const r=mulberry32(seed),g=gaussF(r);const out=[];
+  for(let d=0;d<14;d++){const cA=Math.round(2750+60*g()),cB=Math.round(2750+60*g());out.push({cA,cB,abA:binom(cA,0.61,g),abB:binom(cB,0.61,g)})}return out}
+function cumPath(days){let a=0,na=0,b=0,nb=0;return days.map(d=>{a+=d.abA;na+=d.cA;b+=d.abB;nb+=d.cB;return Object.assign(propTest({x:a,n:na},{x:b,n:nb}),{na,nb,a,b})})}
+const P1=genP1();
+let AA,aaSeed=1;for(;aaSeed<30000;aaSeed++){const d=genAA(aaSeed),ps=cumPath(d).map(x=>x.p);if(ps[0]>0.1&&ps.slice(1,5).some(p=>p<0.05)&&ps[13]>0.35){AA=d;break}}
+if(!AA)AA=genAA(1);
+const PATH={aa:cumPath(AA),p1:cumPath(P1)};
+let runKind='aa',runDay=1,runTimer=null;
+function initRun(){
+  $$('#run-tab button').forEach(b=>b.onclick=()=>{$$('#run-tab button').forEach(x=>x.classList.toggle('on',x===b));runKind=b.dataset.k;stopPlay();runDay=1;$('#run-slider').value=1;drawRun()});
+  $('#run-slider').oninput=e=>{runDay=+e.target.value;drawRun()};
+  $('#run-play').onclick=()=>{if(runTimer){stopPlay();return}if(runDay>=14)runDay=1;$('#run-play').textContent='일시정지';
+    runTimer=setInterval(()=>{runDay++;$('#run-slider').value=runDay;drawRun();if(runDay>=14)stopPlay()},650)};
+  $('#run-reset').onclick=()=>{stopPlay();runDay=1;$('#run-slider').value=1;drawRun()}}
+function stopPlay(){clearInterval(runTimer);runTimer=null;$('#run-play').textContent='재생'}
+function drawRun(){const path=PATH[runKind],t=path[runDay-1],isAA=runKind==='aa';const lbB=isAA?"A′":'B';
+  $('#run-intro').innerHTML=isAA?`<div class="callout small"><b>A/A 테스트란?</b> 두 그룹 모두 똑같은 현행 화면을 봐요. 차이가 나올 이유가 없으니, 배정 시스템과 로깅이 정상인지 확인하고 지표가 우연히 얼마나 흔들리는지 감을 잡는 용도예요. 재생을 눌러 매일 대시보드를 확인해보세요.</div>`
+    :`<div class="callout small"><b>P1 본 실험</b> B그룹은 가게홈에서 최소주문금액바를 봐요. 첫날 10%, 둘째 날 50%만 켜고 셋째 날부터 전체에 켜는 램프업을 적용했어요. 오른쪽 차트에서 일별 효과가 시간에 따라 어떻게 변하는지 보세요.</div>`;
+  $('#run-day').textContent=`${runDay}일차 / 14일${isAA?'':` (노출 ${Math.round(RAMP[runDay-1]*100)}%)`}`;
+  const win=1-t.win;
+  $('#run-kpi').innerHTML=`<div class="kpi"><div class="k">누적 장바구니 사용자</div><div class="v">${fmt(t.na+t.nb)}명</div></div>
+  <div class="kpi"><div class="k">장바구니 이탈률 A / ${lbB}</div><div class="v">${pct(t.vA,1)} / ${pct(t.vB,1)}</div><div class="s">차이 ${sg((t.d*100).toFixed(2))}%p</div></div>
+  <div class="kpi"><div class="k">p-value (누적)</div><div class="v ${t.p<0.05?'neg':''}">${fp(t.p)}</div><div class="s">${t.p<0.05?'유의 수준 아래':'유의하지 않음'}</div></div>
+  <div class="kpi"><div class="k">${lbB}가 나을 확률</div><div class="v blue">${pct(win,1)}</div><div class="s">이탈률이 더 낮을 확률</div></div>`;
+  const x=[...Array(14)].map((_,i)=>(i+1)+'일');
+  $('#run-c1').innerHTML=lineChart({x,series:[{values:path.map((p,i)=>i<runDay?p.p:null),color:'var(--blue)',dot:true}],hlines:[{y:0.05,color:'var(--neg)',label:'0.05'}],yMin:0,yMax:1,yFmt:v=>v.toFixed(2),label:'누적 p-value 추이'});
+  const src=isAA?AA:P1;
+  if(isAA){$('#run-c2t').textContent='누적 장바구니 이탈률';$('#run-c2l').innerHTML='<span><i style="background:var(--a)"></i>A</span><span><i style="background:var(--c)"></i>A′</span>';
+    $('#run-c2').innerHTML=lineChart({x,series:[{values:path.map((p,i)=>i<runDay?p.vA*100:null),color:'var(--a)',dot:true},{values:path.map((p,i)=>i<runDay?p.vB*100:null),color:'var(--c)',dot:true}],yMin:58,yMax:64,yFmt:v=>v.toFixed(1)+'%',label:'누적 이탈률'})}
+  else{$('#run-c2t').textContent='일별 이탈률 차이 (B − A, %p)';$('#run-c2l').innerHTML='<span><i style="background:var(--blue)"></i>그날 하루의 차이</span><span><i style="background:var(--ink3)"></i>0</span>';
+    const daily=src.map(d=>(d.abB/d.cB-d.abA/d.cA)*100);
+    $('#run-c2').innerHTML=lineChart({x,series:[{values:daily.map((v,i)=>i<runDay?v:null),color:'var(--blue)',dot:true}],hlines:[{y:0,color:'var(--ink3)'}],yMin:-9,yMax:2,yFmt:v=>v.toFixed(1),label:'일별 효과'})}
+  let alert='';
+  if(isAA){const firstSig=path.findIndex(p=>p.p<0.05);
+    if(runDay-1===firstSig||(t.p<0.05))alert=`<div class="callout neg"><b>${runDay}일차: p = ${fp(t.p)}, 유의해요!</b><br>두 그룹이 똑같은 화면을 보는데도 유의한 차이가 떴어요. 지금 여기서 실험을 멈추고 “${t.d<0?'A′':'A'}가 더 낫다”고 보고하면 어떻게 될까요?</div>`;
+    if(runDay===14){S.runAA=true;save();alert=`<div class="fb good"><b>14일차: p = ${fp(t.p)}</b>끝까지 기다리니 차이가 사라졌어요. 중간에 한 번이라도 0.05 아래로 내려간 순간 멈췄다면 존재하지 않는 효과를 “발견”한 셈이에요. 이게 Peeking Problem이에요. 매일 들여다보는 횟수만큼 위양성 기회가 늘어나요. 함정 연구소에서 400번 반복해보세요.</div>`}}
+  else{if(runDay<=3)alert=`<div class="callout warn"><b>초반 효과가 커 보여요</b><br>첫날 효과가 가장 크죠? 새 UI가 신기해서 눌러보는 신규성 효과일 수 있어요. 또 첫날은 노출 10%라 표본도 작아요.</div>`;
+    if(runDay===14){S.runDone=true;save();refreshStatus();alert=`<div class="fb good"><b>14일 완료</b>일별 효과가 처음엔 크다가 약 −2.5%p 부근에서 안정됐어요. 계획한 기간을 채웠으니 이제 Readout을 열어요.</div><div class="row"><button class="btn" data-go="p1o">P1 결과 열기</button></div>`}}
+  $('#run-alert').innerHTML=alert}
+
+/* ================= P1 READOUT ================= */
+function sum(arr,k,from=0){return arr.slice(from).reduce((s,d)=>s+d[k],0)}
+function initP1o(){const d=P1;const nA=sum(d,'nA'),nB=sum(d,'nB'),cA=sum(d,'cA'),cB=sum(d,'cB'),abA=sum(d,'abA'),abB=sum(d,'abB'),oA=sum(d,'oA'),oB=sum(d,'oB');
+  const aovA=d.reduce((s,x)=>s+x.aovA*x.oA,0)/oA,aovB=d.reduce((s,x)=>s+x.aovB*x.oB,0)/oB;
+  $('#p1o-q').innerHTML=qualityStrip([nA,nB],[0.5,0.5],['A','B']).html;
+  renderTable($('#p1o-t'),[
+    {name:'장바구니 이탈률',note:'분모: 장바구니 담은 사용자',role:'P',type:'prop',a:{x:abA,n:cA},b:{x:abB,n:cB},better:-1},
+    {name:'커머스 주문전환율',note:'분모: 배정 사용자',role:'G',type:'prop',a:{x:oA,n:nA},b:{x:oB,n:nB},better:1},
+    {name:'앱 크래시율',role:'G',type:'prop',a:{x:sum(d,'crA'),n:nA},b:{x:sum(d,'crB'),n:nB},better:-1},
+    {name:'평균주문금액',role:'S',type:'mean',a:{m:aovA,sd:9800,n:oA},b:{m:aovB,sd:9750,n:oB},better:1}]);
+  const all=propTest({x:abA,n:cA},{x:abB,n:cB});const late=propTest({x:sum(d,'abA',3),n:sum(d,'cA',3)},{x:sum(d,'abB',3),n:sum(d,'cB',3)});
+  $('#p1o-nov').innerHTML=`<div class="grid2"><div class="kpi"><div class="k">전체 14일 효과</div><div class="v pos">${sg((all.d*100).toFixed(2))}%p</div><div class="s">95% CI ${sg((all.lo*100).toFixed(2))} ~ ${sg((all.hi*100).toFixed(2))}%p</div></div>
+    <div class="kpi"><div class="k">첫 3일 제외 (4~14일)</div><div class="v pos">${sg((late.d*100).toFixed(2))}%p</div><div class="s">95% CI ${sg((late.lo*100).toFixed(2))} ~ ${sg((late.hi*100).toFixed(2))}%p</div></div></div>
+    <p class="small" style="margin-top:12px">초반 3일을 빼면 효과가 조금 줄지만 여전히 뚜렷해요. 배포 후 기대 효과를 말할 때는 전체 기간보다 안정된 구간의 수치로 말하는 게 보수적이에요. 기간이 짧았다면 이 점검 자체가 불가능했겠죠.</p>`;
+  renderChoices('p1o',$('#p1o-ch'),$('#p1o-fb'),Object.assign([
+    {t:'배포한다',s:'안드로이드 가게홈에 전면 적용',g:'good',f:'SRM 통과, 메인 지표가 크게 개선되고 가드레일은 멀쩡해요. 명확한 승리예요. 다만 이건 안드로이드와 가게홈에서만 검증된 결과라서, 다른 OS와 화면으로 넓힐 땐 다시 실험하는 게 안전해요. 배민도 그렇게 P2로 갔어요.'},
+    {t:'배포하지 않는다',s:'효과가 신규성 효과일 수 있으니 보류',g:'bad',f:'신규성 효과 점검에서 첫 3일을 빼도 효과가 뚜렷했어요. 근거 없는 보류는 개선 효과를 매일 버리는 비용이 있어요.'},
+    {t:'기간을 늘려 재실험한다',s:'더 확실해질 때까지 연장',g:'partial',f:'결과가 이미 명확해서 연장으로 얻을 정보가 적어요. 장기 효과가 궁금하다면 배포 후 일부 사용자를 대조군으로 남기는 홀드아웃(holdout)이 더 나은 방법이에요.'}],
+    {explain:'읽는 순서 복습: ① SRM 통과 ② 메인 개선 ③ 가드레일 악화 없음 ④ 보조 지표 특이사항 없음 ⑤ 신규성 효과 점검 → 배포. 결정 문장 예시: “장바구니 이탈률이 약 2.5~3%p 줄었고 크래시·전환율 악화가 없어 안드로이드 가게홈에 배포합니다. 다음은 전 OS·전 화면 확대 실험입니다.”'}))}
+
+/* ================= P2 ================= */
+const P2RAW={seg:[{n:'안드로이드',a:214000,b:213700},{n:'iOS 5.2 이상',a:120100,b:119900},{n:'iOS 5.2 미만 (구버전)',a:30020,b:22880}]};
+function initP2(){drawP2()}
+function drawP2(){const el=$('#p2-body');
+  if(!S.p2Fixed){const A=P2RAW.seg.reduce((s,x)=>s+x.a,0),B=P2RAW.seg.reduce((s,x)=>s+x.b,0);
+    el.innerHTML=qualityStrip([A,B],[0.5,0.5],['A','B']).html+
+    `<p class="small muted">숫자는 좋아 보이지만, SRM이 뜨면 결과를 읽기 전에 원인부터 찾아야 해요.</p><div class="card locked"><div class="tscroll" id="p2-raw"></div></div>
+    <h2>SRM 원인 찾기</h2><p>사용자 수가 어디서 어긋났는지 세그먼트별로 쪼개봐요. 의심 가는 행을 눌러 조사하세요.</p>
+    <div class="card"><div class="tscroll"><table class="rt" style="min-width:600px"><thead><tr><th>세그먼트</th><th style="text-align:right">A</th><th style="text-align:right">B</th><th style="text-align:right">A 비율</th><th style="text-align:right">SRM p</th><th></th></tr></thead><tbody>${
+      P2RAW.seg.map((s,i)=>{const r=srm([s.a,s.b],[0.5,0.5]);return`<tr><td class="mname">${s.n}</td><td class="num">${fmt(s.a)}</td><td class="num">${fmt(s.b)}</td><td class="num">${(s.a/(s.a+s.b)*100).toFixed(2)}%</td><td class="num">${fp(r.p)}</td><td><button class="btn ghost sm" data-seg="${i}">조사</button></td></tr>`}).join('')}</tbody></table></div><div id="p2-inv"></div></div>`;
+    renderTable($('#p2-raw'),[
+      {name:'커머스 주문전환율',role:'G',type:'prop',a:{x:45500,n:A},b:{x:49700,n:B},better:1},
+      {name:'장바구니 이탈률',role:'P',type:'prop',a:{x:70300,n:115800},b:{x:61900,n:111600},better:-1}]);
+    el.querySelectorAll('[data-seg]').forEach(b=>b.onclick=()=>{const i=+b.dataset.seg;
+      $('#p2-inv').innerHTML=i<2?`<div class="fb partial"><b>${P2RAW.seg[i].n}: 이상 없음</b>이 세그먼트는 50:50에 잘 맞아요. 다른 곳을 찾아보세요.</div>`:
+      `<div class="fb bad"><b>원인 발견: iOS 구버전 앱의 크래시</b>iOS 5.2 미만 앱에서 B그룹 화면에 최소주문금액바를 그리다 앱이 종료되는 버그가 있었어요. 배정은 됐지만 첫 화면 로그가 남기 전에 앱이 꺼져서, 노출 로그 기준 집계에서 B그룹 사용자가 약 7천 명 빠졌어요.
+      <p>살아남은 B그룹은 ‘버그를 겪지 않은 사람’뿐이라 두 그룹이 더 이상 무작위로 나뉜 집단이 아니에요(생존 편향, 계측 문제). 위의 좋아 보이는 숫자는 믿을 수 없어요. 트위먼의 법칙: 너무 좋아 보이는 결과는 대개 틀렸어요.</p></div>
+      <div class="row"><button class="btn" id="p2-fix">버그 수정 후 2주 재실행 결과 열기</button></div>`;
+      const f=$('#p2-fix');if(f)f.onclick=()=>{S.p2Fixed=true;save();refreshStatus();drawP2();window.scrollTo(0,0)}});
+    return}
+  el.innerHTML=`<div class="callout small">구버전 iOS 버그를 고치고, 배정 시점 기준으로 집계하도록 바꿔 2주간 다시 돌렸어요.</div>${qualityStrip([361900,362350],[0.5,0.5],['A','B']).html}
+  <div class="card"><div class="tscroll" id="p2-t"></div></div>
+  <h2>보조 지표가 말해주는 것</h2>
+  <div class="card"><p>주문전환율은 올랐는데 인당 거래액은 제자리예요. 평균주문금액이 떨어졌기 때문이죠. 그리고 ‘최소주문금액 + 2천 원 이내’ 주문 비중이 크게 늘었어요. 여러분은 이걸 어떻게 해석하나요?</p>
+  <details><summary class="small">원문 PM의 해석 보기</summary><div class="fb good" style="margin-top:8px">허들을 정확히 알려주니 사용자가 딱 그 허들에 맞춰 담았어요. 친절하게 제공한 정보가 평균주문금액의 ‘천장’으로 작동한 거예요. 메인 지표만 보고 “성공”으로 끝냈다면 이 발견은 없었어요.</div></details></div>
+  <h2>세그먼트별 장바구니 이탈률</h2>
+  <p>혜택 문구가 함께 노출된 고객군을 나눠봤어요. 같은 문구인데 방향이 달라요.</p>
+  <div class="card"><div class="tscroll" id="p2-seg"></div><p class="small muted" style="margin-top:10px">B그룹 내 바 클릭률: 일반 21%, 첫 주문 혜택 고객 34%, 멤버십 고객 28%</p>
+  <div class="callout warn small"><b>주의</b> 사전에 계획하지 않은 세그먼트 분석은 여러 번 검정한 것과 같아요. 여기서 찾은 차이는 ‘결론’이 아니라 ‘다음 실험의 가설’로 써야 해요.</div></div>
+  <h2>결정</h2><div class="choices" id="p2-ch"></div><div id="p2-fb"></div>`;
+  renderTable($('#p2-t'),[
+    {name:'장바구니 이탈률',note:'분모: 장바구니 담은 사용자',role:'P',type:'prop',a:{x:70480,n:115800},b:{x:68150,n:116300},better:-1},
+    {name:'커머스 주문전환율',role:'G',type:'prop',a:{x:45320,n:361900},b:{x:48150,n:362350},better:1},
+    {name:'인당 거래액 (GMV)',role:'S',type:'mean',a:{m:3181,sd:9190,n:361900},b:{m:3209,sd:9120,n:362350},better:1},
+    {name:'평균주문금액',role:'S',type:'mean',a:{m:25400,sd:10500,n:45320},b:{m:24150,sd:10300,n:48150},better:1},
+    {name:'최소주문금액 +2천 원 이내 주문 비중',note:'분모: 주문',role:'S',type:'prop',a:{x:8248,n:45320},b:{x:11845,n:48150},better:0}]);
+  renderTable($('#p2-seg'),[
+    {name:'일반 고객',role:'S',type:'prop',a:{x:53317,n:85000},b:{x:51404,n:85200},better:-1},
+    {name:'첫 주문 혜택 고객',note:'커머스 주문 이력 없음',role:'S',type:'prop',a:{x:6978,n:9800},b:{x:7227,n:9900},better:-1},
+    {name:'멤버십 혜택 고객',note:'구매 의사가 상대적으로 높음',role:'S',type:'prop',a:{x:10185,n:21000},b:{x:9519,n:21200},better:-1}]);
+  renderChoices('p2',$('#p2-ch'),$('#p2-fb'),Object.assign([
+    {t:'전면 배포한다',s:'메인 개선, 가드레일 통과',g:'partial',f:'배포 자체는 맞아요. 하지만 여기서 끝내면 평균주문금액 하락과 세그먼트 반전이라는 두 신호를 버리게 돼요.'},
+    {t:'배포하지 않는다',s:'거래액이 안 늘었으니 의미 없다',g:'bad',f:'인당 거래액은 ‘악화’가 아니라 ‘변화 없음’이에요. 주문전환이 오르고 이탈이 줄었다면 고객 불편이 해소된 거예요. 가드레일을 넘지 않았는데 거부하면 기준이 사후에 바뀐 셈이에요.'},
+    {t:'배포하고, 보조 지표 발견으로 다음 실험을 설계한다',s:'평균주문금액과 고객군 차이를 가설로',g:'good',f:'원문 PM의 선택과 같아요. “허들 정보가 주문금액의 천장이 된다”, “혜택 안내는 구매 의사가 높은 고객에게 효과적이다”라는 두 발견이 P3의 가설이 됐어요.'}],
+    {explain:'결정 문장 예시: “전 OS·전 화면에서 장바구니 이탈률 −2.3%p, 주문전환율 +6%(상대)로 P1 효과가 재현되어 배포합니다. 다만 평균주문금액이 약 5% 줄어 인당 거래액은 변화가 없었고, 이를 개선하는 후속 실험을 제안합니다.”'}))}
+
+/* ================= P3 ================= */
+let p3mode=null;
+function initP3(){
+  $('#p3-q').innerHTML=qualityStrip([362800,362500],[0.5,0.5],['A','B']).html;
+  renderTable($('#p3-t'),[
+    {name:'커머스 주문전환율',role:'P',type:'prop',a:{x:45640,n:362800},b:{x:45760,n:362500},better:1},
+    {name:'장바구니 이탈률',role:'S',type:'prop',a:{x:71260,n:116900},b:{x:71240,n:117000},better:-1},
+    {name:'평균주문금액',role:'S',type:'mean',a:{m:24300,sd:10200,n:45640},b:{m:24340,sd:10250,n:45760},better:1},
+    {name:'앱 크래시율',role:'G',type:'prop',a:{x:1520,n:362800},b:{x:1530,n:362500},better:-1}]);
+  const expo=14860/362500,trigEff=0.023,dil=trigEff*expo,base=45640/362800,n=362650;
+  const pw=powerProp(base,dil,n,0.05),need=ssProp(base,base+dil,0.05,0.8),perDay=n/14;
+  $('#p3-why').innerHTML=`<p>B그룹에서 실제로 달라진 건 ‘N원 더 담으면 N원 할인’ 문구 하나였어요. 그런데 이 문구는 <b>고허들 쿠폰을 가지고 있으면서 이미 최소주문금액을 채운</b> 사람에게만 보여요. 당시 고허들 쿠폰을 거의 운영하지 않았어요.</p>
+    <div class="grid4"><div class="kpi"><div class="k">B그룹 문구 노출률</div><div class="v neg">${pct(expo,1)}</div><div class="s">${fmt(14860)}명 / ${fmt(362500)}명</div></div>
+    <div class="kpi"><div class="k">노출자 안에서의 효과 (가정)</div><div class="v">+${(trigEff*100).toFixed(1)}%p</div><div class="s">아래 트리거 분석 결과</div></div>
+    <div class="kpi"><div class="k">전체로 희석된 효과</div><div class="v">+${(dil*100).toFixed(3)}%p</div><div class="s">노출률 × 효과</div></div>
+    <div class="kpi"><div class="k">이 실험의 검정력</div><div class="v neg">${pct(pw,0)}</div><div class="s">80%에 한참 못 미침</div></div></div>
+    <p style="margin-top:14px">효과가 있었더라도 전체 사용자에 희석되면 이 표본으로는 잡을 확률이 ${pct(pw,0)}뿐이었어요. 80% 검정력을 얻으려면 그룹당 약 ${fmt(need)}명, 이 트래픽으로 약 ${Math.ceil(need/perDay)}일이 필요해요. 이런 결과를 <b>Underpowered NULL</b>이라고 해요. “효과가 없다”가 아니라 “이 실험으로는 알 수 없다”예요.</p>`;
+  $$('#p3-seg button').forEach(b=>b.onclick=()=>{p3mode=b.dataset.k;$$('#p3-seg button').forEach(x=>x.classList.toggle('on',x===b));drawTrig()});
+  renderChoices('p3',$('#p3-ch'),$('#p3-fb'),Object.assign([
+    {t:'롤백한다',s:'메인 지표가 안 움직였으니 실패',g:'bad',f:'검정력이 낮은 NULL은 가설을 기각할 근거가 못 돼요. 올바른 트리거 분석에서는 노출자에게 뚜렷한 효과가 있었어요.'},
+    {t:'배포한다',s:'노출자에겐 효과가 있으니까',g:'partial',f:'노출자에게 효과가 있었고 가드레일도 멀쩡하니 비용이 낮다면 배포할 수 있어요. 하지만 지금 구조로는 사업 지표를 움직일 수 없다는 사실은 그대로예요. 무엇이 효과의 크기를 제한하는지까지 말해야 해요.'},
+    {t:'노출 조건을 넓혀 재실험한다',s:'마케팅팀과 고허들 쿠폰 운영을 함께 설계',g:'good',f:'가설은 살아 있고, 막힌 건 노출 규모예요. 평균주문금액은 UI보다 쿠폰·무료배달 허들 같은 사업 전략에 좌우되므로 사업·마케팅팀과 함께 가야 해요. 원문에서도 쿠폰 운영이 늘어난 P4에서 이 가설이 다시 검증돼요.'}],
+    {explain:'핵심: NULL을 보면 “효과 없음”이라 쓰기 전에 ① 검정력 ② 실제 노출 규모 ③ 변경점이 정말 달랐는지를 먼저 점검하세요.'}))}
+function drawTrig(){const el=$('#p3-trig');
+  if(p3mode==='wrong'){el.innerHTML=`<div class="card"><div class="tscroll" id="p3-tw"></div></div>
+    <div class="fb bad"><b>편향된 비교예요</b>차이가 엄청나 보이지만, 노출자는 애초에 ‘쿠폰을 가진, 이미 최소금액을 채운’ 구매 의사 높은 사람들이에요. 문구가 없어도 주문했을 사람들이죠. 무작위로 나뉜 게 아니라 조건으로 걸러진 집단끼리 비교했으니 선택 편향(Selection Bias)이에요. 원문 PM도 처음엔 이렇게 봤는데, 방향성 신호로만 써야 해요.</div>`;
+    renderTable($('#p3-tw'),[{name:'주문전환율',role:'S',type:'prop',a:{x:37973,n:347640},b:{x:7787,n:14860},better:1}],{la:'B 미노출자',lb:'B 노출자'})}
+  else if(p3mode==='right'){el.innerHTML=`${qualityStrip([14900,14860],[0.5,0.5],['A 조건 충족','B 조건 충족']).html}<div class="card"><div class="tscroll" id="p3-tr"></div></div>
+    <div class="fb good"><b>올바른 트리거 분석</b>A그룹에서도 ‘문구가 있었다면 노출됐을’ 조건을 로깅해두고, 조건을 만족한 사람끼리 비교했어요. 두 집단 모두 같은 조건으로 걸렀으니 무작위 배정의 성질이 유지돼요. 효과는 편향된 비교보다 훨씬 작지만 진짜예요. 이 로깅은 실험 전에 설계해야 가능해요(Counterfactual logging).</div>`;
+    renderTable($('#p3-tr'),[
+      {name:'주문전환율',role:'S',type:'prop',a:{x:7465,n:14900},b:{x:7787,n:14860},better:1},
+      {name:'평균주문금액',role:'S',type:'mean',a:{m:29400,sd:10800,n:7465},b:{m:31200,sd:11000,n:7787},better:1}],{la:'A 조건 충족자',lb:'B 조건 충족자'})}
+  else el.innerHTML=''}
+
+/* ================= P4 ================= */
+const P4N={A:241300,B:241500,C:241100};
+const P4M=[
+  {name:'커머스 주문전환율',role:'P',type:'prop',A:{x:30420,n:P4N.A},B:{x:30510,n:P4N.B},C:{x:30470,n:P4N.C},better:1},
+  {name:'평균주문금액',role:'G',type:'mean',A:{m:25100,sd:10300,n:30420},B:{m:25060,sd:10250,n:30510},C:{m:24610,sd:10100,n:30470},better:1},
+  {name:'장바구니 이탈률',role:'S',type:'prop',A:{x:47580,n:78000},B:{x:47790,n:78300},C:{x:47680,n:78150},better:-1},
+  {name:'최소주문금액 달성률',note:'분모: 장바구니 담은 사용자',role:'S',type:'prop',A:{x:42900,n:78000},B:{x:43300,n:78300},C:{x:43050,n:78150},better:1},
+  {name:'7일 재구매율',note:'분모: 주문한 사용자',role:'S',type:'prop',A:{x:6479,n:30420},B:{x:6706,n:30510},C:{x:6520,n:30470},better:1},
+  {name:'앱 크래시율',role:'G',type:'prop',A:{x:1013,n:P4N.A},B:{x:1040,n:P4N.B},C:{x:1008,n:P4N.C},better:-1},
+  {name:'고객센터 문의율',role:'S',type:'prop',A:{x:2413,n:P4N.A},B:{x:2440,n:P4N.B},C:{x:2390,n:P4N.C},better:-1}];
+let p4adj='none';
+function initP4(){$('#p4-q').innerHTML=qualityStrip([P4N.A,P4N.B,P4N.C],[1/3,1/3,1/3],['A','B','C']).html;
+  $$('#p4-adj button').forEach(b=>b.onclick=()=>{p4adj=b.dataset.k;$$('#p4-adj button').forEach(x=>x.classList.toggle('on',x===b));drawP4()});drawP4();
+  renderChoices('p4',$('#p4-ch'),$('#p4-fb'),Object.assign([
+    {t:'B를 배포한다',s:'7일 재구매율이 유의하게 올랐다',g:'bad',f:'14개를 검정하면 효과가 없어도 0.05 아래가 하나쯤 나올 확률이 절반이 넘어요. 보정을 켜면 사라지는 신호이고, 사전에 정한 메인 지표도 아니었어요. 전형적인 p-hacking 경로예요.'},
+    {t:'C를 배포한다',s:'부담스럽지 않은 넛지가 사용자 경험엔 좋다',g:'bad',f:'C는 메인 지표 개선이 없고 가드레일인 평균주문금액이 유의하게 떨어졌어요. 배포 근거가 없어요.'},
+    {t:'둘 다 배포하지 않고 학습을 정리한다',s:'메인 개선 없음, C는 가드레일 악화',g:'good',f:'메인 지표가 안 움직였으니 배포 근거가 없어요. 대신 C에서 평균주문금액이 떨어진 건 “업셀링 넛지를 줄이면 주문금액이 떨어진다”, 즉 P3에서 검증 못 한 가설을 반대 방향에서 확인한 결과예요. 쿠폰 운영이 늘어 노출이 충분해진 덕분이죠.'}],
+    {explain:'원문 PM의 결론: 실험은 성공과 실패의 이분법이 아니에요. P3에서 흐릿했던 가설이 P4에서 선명해졌듯, 모든 결과는 다음 가설의 재료예요.'}))}
+function drawP4(){const rowsFor=g=>P4M.map(m=>({name:m.name,note:m.note,role:m.role,type:m.type,a:m.A,b:m[g],better:m.better}));
+  const rb=rowsFor('B'),rc=rowsFor('C');const ps=[...rb,...rc].map(r=>test(r).p);const f=sigFlags(ps,0.05,p4adj);
+  renderTable($('#p4-tb'),rb,{flags:f.slice(0,7),lb:'B 항상 노출'});renderTable($('#p4-tc'),rc,{flags:f.slice(7),lb:'C 8천 원 이하만'});
+  const nsig=f.filter(Boolean).length;
+  const msg={none:`보정 없이 α = 0.05로 14개를 검정했어요. 유의한 결과가 ${nsig}개예요. 그런데 효과가 전혀 없어도 14번 검정하면 하나 이상 걸릴 확률은 1 − 0.95¹⁴ ≈ 51%예요. B의 7일 재구매율, 믿을 수 있을까요?`,
+    bonf:`Bonferroni: 각 검정의 기준을 0.05 / 14 ≈ 0.0036으로 낮췄어요. 유의한 결과가 ${nsig}개로 줄었어요. 가장 보수적이라 진짜 효과도 놓칠 수 있어요.`,
+    bh:`Benjamini-Hochberg: 유의 판정 중 틀린 것의 비율(FDR)을 5%로 관리해요. Bonferroni보다 덜 보수적이에요. 유의한 결과는 ${nsig}개예요.`}[p4adj];
+  $('#p4-adjnote').innerHTML=`<div class="callout ${p4adj==='none'?'warn':''} small">${msg}<br>추천 넛지 클릭률(노출 대비)은 B 8.1%, C 11.4%였어요.</div>`}
+
+/* ================= LAB ================= */
+function initLab(){
+  $('#pk-run').onclick=()=>{const days=+$('#pk-days').value,runs=400;const r=mulberry32(1000+days),g=gaussF(r);let ever=0,fin=0;const paths=[];
+    for(let k=0;k<runs;k++){let a=0,na=0,b=0,nb=0,e=false;const zs=[];
+      for(let d=0;d<days;d++){const cA=2750,cB=2750;a+=binom(cA,0.61,g);na+=cA;b+=binom(cB,0.61,g);nb+=cB;const t=propTest({x:a,n:na},{x:b,n:nb});zs.push(t.z);if(t.p<0.05)e=true}
+      if(e)ever++;if(Math.abs(zs[days-1])>1.96)fin++;if(k<24)paths.push(zs)}
+    const fr=fin/runs,er=ever/runs;const x=[...Array(days)].map((_,i)=>(i+1)+'일');
+    $('#pk-out').innerHTML=`<div class="bars"><div class="hbar"><span>마지막 날 한 번만 확인</span><div class="tr"><div style="width:${fr*100/0.5}%;background:var(--pos)"></div></div><b>${pct(fr,1)}</b></div>
+      <div class="hbar"><span>매일 보다 유의하면 멈춤</span><div class="tr"><div style="width:${Math.min(100,er*100/0.5)}%;background:var(--neg)"></div></div><b>${pct(er,1)}</b></div></div>
+      <p class="small muted" style="margin:6px 0 14px">막대 끝은 50%. 효과가 없는 실험이니, 여기 나온 ‘유의’는 전부 위양성이에요.</p>
+      <h3>A/A 실험 24개의 z-통계량 경로</h3><div class="legend"><span><i style="background:var(--neg)"></i>±1.96 (p = 0.05 경계)</span></div>
+      ${lineChart({x,series:paths.map(z=>({values:z,color:'var(--blue)',w:1.3,o:.45})),hlines:[{y:1.96,color:'var(--neg)'},{y:-1.96,color:'var(--neg)'}],yMin:-3.5,yMax:3.5,yFmt:v=>v.toFixed(1),label:'z 경로'})}
+      <div class="fb good"><b>무엇을 봤나요?</b>경계선을 한 번이라도 넘은 경로가 꽤 많죠. 끝에 한 번만 보면 위양성률이 설계대로 약 5%지만, 매일 보고 멈추면 ${pct(er,0)} 안팎으로 불어나요. 실무 해결책은 ① 기간을 미리 정하고 끝까지 기다리기 ② 중간 확인이 필요하면 Sequential Testing(Always-valid p-value)처럼 여러 번 봐도 α가 유지되는 방법 쓰기예요.</div>`};
+  const SP={p1:{A:{x:9000,n:90000},B:{x:950,n:10000}},p2:{A:{x:8000,n:50000},B:{x:7800,n:50000}}};
+  function drawSp(k){const el=$('#sp-out');const pool={A:{x:SP.p1.A.x+SP.p2.A.x,n:SP.p1.A.n+SP.p2.A.n},B:{x:SP.p1.B.x+SP.p2.B.x,n:SP.p1.B.n+SP.p2.B.n}};
+    if(k==='pool'){el.innerHTML='<div class="tscroll" id="sp-t"></div><div class="callout warn small">합쳐 보면 B가 주문전환율을 크게 올린 것처럼 보여요. 정말 그럴까요? 기간별로 나눠보세요.</div>';
+      renderTable($('#sp-t'),[{name:'주문전환율 (2주 합계)',role:'P',type:'prop',a:pool.A,b:pool.B,better:1}])}
+    else{el.innerHTML='<div class="tscroll" id="sp-t"></div><div class="fb bad"><b>기간마다 B가 오히려 낮아요</b>1주차(평소, 전환율 10% 수준)엔 B가 10%만 배정됐고, 2주차(프로모션, 전환율 16% 수준)엔 50%로 늘었어요. B 사용자의 대부분이 전환율 높은 주간에 몰려 있어서, 합치면 B가 좋아 보이는 착시가 생겨요. 이게 심슨의 역설이에요.<p>해결: 램프업 중 비율이 바뀐 기간은 분석에서 빼거나, 비율이 안정된 기간만 쓰거나, 기간별로 나눠 분석한 뒤 가중 결합해요.</p></div>';
+      renderTable($('#sp-t'),[{name:'1주차: B 10% 배정',note:'평소 주간',role:'P',type:'prop',a:SP.p1.A,b:SP.p1.B,better:1},{name:'2주차: B 50% 배정',note:'대형 프로모션 주간',role:'P',type:'prop',a:SP.p2.A,b:SP.p2.B,better:1}])}}
+  $$('#sp-seg button').forEach(b=>b.onclick=()=>{$$('#sp-seg button').forEach(x=>x.classList.toggle('on',x===b));drawSp(b.dataset.k)});drawSp('pool');
+  const srmCalc=()=>{const a=+$('#srm-a').value,b=+$('#srm-b').value,r=+$('#srm-r').value/100;
+    if(!(a>0&&b>0&&r>0&&r<1)){$('#srm-out').innerHTML='<div class="fb bad"><b>입력값을 확인하세요</b>사용자 수는 0보다 크고, 비율은 1~99% 사이여야 해요.</div>';return}
+    $('#srm-out').innerHTML=qualityStrip([a,b],[r,1-r],['A','B']).html+'<p class="small muted">같은 0.6%p 차이도 표본이 1천 명이면 우연이지만, 10만 명이면 SRM이에요. 비율만 보고 판단하지 말고 검정하세요.</p>'};
+  ['a','b','r'].forEach(k=>$('#srm-'+k).oninput=srmCalc);srmCalc()}
+
+/* ================= MEMO ================= */
+const DEC_TXT={p1o:['P1 결과',['배포한다','배포하지 않는다','기간을 늘려 재실험한다']],p2:['P2 전면 확대',['전면 배포','배포하지 않음','배포 + 후속 실험 설계']],
+  p3:['P3 혜택 넛지',['롤백','배포','노출 조건을 넓혀 재실험']],p4:['P4 추천 상품',['B 배포','C 배포','둘 다 배포하지 않고 학습 정리']]};
+function renderMemo(){const el=$('#memo-list');
+  el.innerHTML=DEC_KEYS.map(k=>{const [title,opts]=DEC_TXT[k];const d=S.dec[k];
+    return`<div class="card"><div class="row" style="justify-content:space-between"><h3 style="margin:0">${title}</h3>${d!=null?`<span class="badge done">${opts[d]}</span>`:`<button class="btn ghost sm" data-go="${k}">결정하러 가기</button>`}</div>
+    <label class="fld" style="margin:10px 0 0"><span>근거 (효과 크기, 비용, 리스크)</span><textarea data-note="${k}" placeholder="예) 이탈률 −2.5%p, 크래시 변화 없음, 개발 비용 낮음 → 배포">${(S.notes[k]||'').replace(/</g,'&lt;')}</textarea></label></div>`}).join('');
+  el.querySelectorAll('[data-note]').forEach(t=>t.oninput=()=>{S.notes[t.dataset.note]=t.value;save();memoDoc()});memoDoc()}
+function memoDoc(){$('#memo-doc').textContent='[퀵마트 최소주문금액바 실험 결정 요약]\n\n'+DEC_KEYS.map(k=>{const [title,opts]=DEC_TXT[k];const d=S.dec[k];
+  return`■ ${title}\n  결정: ${d!=null?opts[d]:'(미결정)'}\n  근거: ${S.notes[k]||'(작성 전)'}`}).join('\n\n')+'\n\n가장 많이 배운 실험: \n다음에 해볼 실험: '}
+$('#memo-copy').onclick=()=>copyText($('#memo-doc').textContent);
+$('#memo-reset').onclick=()=>{if(confirm('설계, 결정, 메모를 모두 지울까요?')){S={design:{},dec:{},notes:{}};save();location.hash='#brief';location.reload()}};
+
+/* ---------- boot ---------- */
+initDesign();initRun();initP1o();initP2();initP3();initP4();initLab();refreshStatus();
+go((location.hash||'#brief').slice(1));
+window.addEventListener('hashchange',()=>{const v=location.hash.slice(1);if(v!==currentView)go(v)});
+})();
+</script>
+</body>
+</html>
