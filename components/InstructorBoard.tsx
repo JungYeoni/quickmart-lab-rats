@@ -5,6 +5,7 @@ import { STEP_KEYS, STEP_LABELS, type StepKey, type StepStatus } from "@/lib/ste
 import { countByCase } from "@/lib/team-case";
 import { useClassLive } from "@/lib/use-class-live";
 import { StatusBadge } from "./StatusBadge";
+import { LiveBoard } from "./admin/LiveBoard";
 import { Button, Card, ErrorText } from "./ui";
 
 const ACTION_LABELS: Record<StepStatus, string> = { locked: "잠금", open: "열기", closed: "마감" };
@@ -89,6 +90,8 @@ export function InstructorBoard({ code }: { code: string }) {
         </div>
         {unpicked.length > 0 && <p className="mt-4 text-ink2">사례를 아직 고르지 않은 조: {unpicked.map((t) => t.name).join(", ")}</p>}
       </Card>
+
+      <LiveBoard code={code} allowedCases={cls.allowed_cases} />
     </main>
   );
 }
