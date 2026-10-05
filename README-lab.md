@@ -48,6 +48,8 @@ ADMIN_PASSWORD=원하는-강사-비밀번호
 ADMIN_SESSION_SECRET=아무-긴-랜덤-문자열
 ```
 
+`UPSTAGE_API_KEY` 를 비워 두면 AI 피드백·종합 분석은 **샘플(mock) 응답**으로 동작해요(화면에 "샘플"로 표시). 키를 넣으면 Solar 가 실제로 분석해요.
+
 `.env.local`은 절대 GitHub에 올리지 않기 (`.gitignore` 확인).
 
 ## 3. Claude Code에 붙여넣을 프롬프트 (마일스톤 순서대로)
