@@ -140,19 +140,22 @@ export function compareDiff(vA: number, vB: number, se: number, alpha = 0.05, se
   };
 }
 
-/** 두 비율 비교. p 값은 합동 SE, 신뢰구간은 비합동 SE. */
-export function propTest(a: { x: number; n: number }, b: { x: number; n: number }, alpha = 0.05): CompareResult {
+/**
+ * 두 비율 비교. p 값은 합동 SE, 신뢰구간은 비합동 SE.
+ * seScale < 1 이면 SE 를 그만큼 줄여 계산한다(배정 단위와 분석 단위가 달라 SE 가 과소하게 나오는 상황 재현).
+ */
+export function propTest(a: { x: number; n: number }, b: { x: number; n: number }, alpha = 0.05, seScale = 1): CompareResult {
   const pA = a.x / a.n;
   const pB = b.x / b.n;
   const pool = (a.x + b.x) / (a.n + b.n);
-  const se0 = Math.sqrt(pool * (1 - pool) * (1 / a.n + 1 / b.n));
-  const se = Math.sqrt((pA * (1 - pA)) / a.n + (pB * (1 - pB)) / b.n);
+  const se0 = Math.sqrt(pool * (1 - pool) * (1 / a.n + 1 / b.n)) * seScale;
+  const se = Math.sqrt((pA * (1 - pA)) / a.n + (pB * (1 - pB)) / b.n) * seScale;
   return compareDiff(pA, pB, se, alpha, se0);
 }
 
-/** 두 평균 비교(Welch 형 SE). */
-export function meanTest(a: { m: number; sd: number; n: number }, b: { m: number; sd: number; n: number }, alpha = 0.05): CompareResult {
-  const se = Math.sqrt((a.sd * a.sd) / a.n + (b.sd * b.sd) / b.n);
+/** 두 평균 비교(Welch 형 SE). seScale 은 propTest 와 같다. */
+export function meanTest(a: { m: number; sd: number; n: number }, b: { m: number; sd: number; n: number }, alpha = 0.05, seScale = 1): CompareResult {
+  const se = Math.sqrt((a.sd * a.sd) / a.n + (b.sd * b.sd) / b.n) * seScale;
   return compareDiff(a.m, b.m, se, alpha);
 }
 
