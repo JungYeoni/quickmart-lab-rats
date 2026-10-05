@@ -8,8 +8,15 @@ DA 트랙 A/B 테스트 실습 세션용 웹앱. 조마다 실제 테크 기업 
 - `docs/cases/README.md`: 사례 카탈로그, 필수 개념 커버리지
 - `docs/cases/{baemin,toss,daangn,netflix}.md`: 사례별 원문 사실, 모집단, 숨긴 효과, 설계→결과 규칙, 루브릭, 검증 시나리오
 - `docs/review-contract.md`: LLM 리뷰 계약(team / class / share)
+- `docs/ab-testing/README.md`: A/B 테스트 학습 위키 목차와 편집 원칙
 - `supabase/schema.sql`: DB
 - `reference/prototype.html`: UI·카피·디자인 토큰 원본(배민 사례 단일 HTML 프로토타입)
+
+## A/B 테스트 위키 편집 규칙
+- 사용자가 Notion 원문을 전달하면 작성자의 설명 흐름과 내용을 보존한 채 `docs/ab-testing/`에 연재형 위키로 정리한다.
+- Notion 원문의 `토글) 추천목차` 또는 `<details><summary>추천 목차</summary>…</details>` 부분은 옵시디언에만 보존하고, GitHub 위키 문서에는 포함하지 않는다.
+- 원문 Notion 링크는 옵시디언에만 보존하고 GitHub 위키 문서에는 첨부하지 않는다.
+- GitHub 위키에서는 문단 구분, 목록 들여쓰기, 제목 주변 공백과 내부 내비게이션을 정리해 읽기 쉽게 만든다.
 
 ## 절대 규칙
 1. **사례 문서의 "검증 시나리오"가 진실의 원천**. 파라미터는 sim-core의 보정 노브 범위(±50%) 안에서만 조정하고 `CALIBRATION.md`에 기록.
