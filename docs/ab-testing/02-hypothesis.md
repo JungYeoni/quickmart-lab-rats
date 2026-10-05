@@ -211,9 +211,3 @@ $`H_1: p_T > p_C`$
 - [서비스 기획 입문 1: 문제 정의부터 해결까지](https://ljyljy0813.tistory.com/31)
 - [A/B 테스트에서 귀무가설과 대립가설: 이해하기 쉬운 설명](https://code-lab.tistory.com/entry/AB-%ED%85%8C%EC%8A%A4%ED%8A%B8%EC%97%90%EC%84%9C-%EA%B7%80%EB%AC%B4%EA%B0%80%EC%84%A4%EA%B3%BC-%EB%8C%80%EB%A6%BD%EA%B0%80%EC%84%A4-%EC%9D%B4%ED%95%B4%ED%95%98%EA%B8%B0-%EC%89%AC%EC%9A%B4-%EC%84%A4%EB%AA%85)
 - [One-tailed vs. Two-tailed A/B Testing](https://www.invespcro.com/blog/one-tailed-vs-two-tailed-a-b-testing-everything-you-possibly-need-to-know/#elementor-toc__heading-anchor-0)
-
----
-
-문제란, 현재 상태와 바람직한 상태의 차이를 말합니다. 하지만 우리가 정의한 문제는 모두 가설이며, 이 가설을 뒷받침할 만한 정량/정성 데이터 등 근거가 있어야 합니다.
-
-![현재 상태와 바람직한 상태의 차이로 문제를 설명한 도식](images/02-problem-definition.png)
