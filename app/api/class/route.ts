@@ -21,7 +21,10 @@ export async function POST(req: Request) {
       .select("id, code")
       .single();
     if (!error) return NextResponse.json({ id: data.id, code: data.code });
-    if (error.code !== "23505") return fail("수업을 만들지 못했어요.", 500); // unique 충돌이면 새 코드로 재시도
+    if (error.code !== "23505") {
+      console.error("[api/class] 수업 생성 실패", error);
+      return fail("수업을 만들지 못했어요.", 500);
+    } // unique 충돌이면 새 코드로 재시도
   }
   return fail("수업 코드를 만들지 못했어요. 다시 시도해 주세요.", 500);
 }

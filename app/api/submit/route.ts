@@ -51,6 +51,9 @@ export async function POST(req: Request) {
     .order("version", { ascending: false }).limit(1).maybeSingle();
   const version = (last?.version ?? 0) + 1;
   const { error } = await db.from("submissions").insert({ class_id: cls.id, team_id: teamId, case_key: plugin.key, step, phase, kind, payload, version });
-  if (error) return fail("제출을 저장하지 못했어요.", 500);
+  if (error) {
+    console.error("[api/submit] 저장 실패", error);
+    return fail("제출을 저장하지 못했어요.", 500);
+  }
   return NextResponse.json({ ok: true, version });
 }

@@ -20,6 +20,9 @@ export async function POST(req: Request) {
     .update({ status: body.data.status, updated_at: new Date().toISOString() })
     .eq("class_id", cls.id)
     .eq("step", body.data.step);
-  if (error) return fail("스텝 상태를 바꾸지 못했어요.", 500);
+  if (error) {
+    console.error("[api/step] 상태 변경 실패", error);
+    return fail("스텝 상태를 바꾸지 못했어요.", 500);
+  }
   return NextResponse.json({ ok: true });
 }

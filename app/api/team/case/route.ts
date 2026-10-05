@@ -34,6 +34,9 @@ export async function POST(req: Request) {
   if (!result.ok) return fail(result.message, 409);
 
   const { error } = await db.from("teams").update({ case_key: caseKey }).eq("id", teamId);
-  if (error) return fail("사례를 저장하지 못했어요.", 500);
+  if (error) {
+    console.error("[api/team/case] 저장 실패", error);
+    return fail("사례를 저장하지 못했어요.", 500);
+  }
   return NextResponse.json({ ok: true, caseKey });
 }
