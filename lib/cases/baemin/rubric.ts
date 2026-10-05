@@ -2,8 +2,6 @@
  * LLM 리뷰용 루브릭·결정 옵션·정답 공개 해설 (docs/cases/baemin.md §6).
  * 원문 문장은 길게 인용하지 않고 사실만 요약한다. 정답 공개(reveal) 전에는 조에게 보여주지 않는다.
  */
-import type { DecisionOption } from "../types";
-
 export const rubric: Record<string, string> = {
   diagnose:
     "관찰 데이터만으로는 '바 → 이탈 감소' 인과를 말할 수 없다(장바구니를 자주 오가는 사람은 원래 구매 의도가 높을 수 있는 등 교란). 통제된 비교가 필요하다는 결론이면 만점.",
@@ -21,37 +19,6 @@ export const rubric: Record<string, string> = {
   p2: "결정(P2): 전면 배포는 부분 / 배포 안 함은 오답 / 배포하되 보조 지표 발견(평균주문금액 천장, 구매 의사 높은 고객에게 혜택 안내가 효과적)에서 후속 실험을 제안하면 정답. SRM 원인(iOS 구버전 크래시와 집계 기준)을 짚었는지도 본다.",
   p3: "결정(P3): 롤백은 오답 / 그대로 배포는 부분 / 노출 조건을 넓혀(마케팅 협업) 재실험이 정답. 가설이 틀린 게 아니라 노출 규모가 부족했고, 검정력과 트리거 분석을 근거로 들면 가산.",
   p4: "결정(P4): B 배포는 오답(재구매율 등은 다중검정 위양성) / C 배포도 오답(평균주문금액 가드레일 악화) / 둘 다 배포하지 않고 학습을 정리하면 정답.",
-};
-
-export const decisions: Record<string, { options: DecisionOption[] }> = {
-  p1: {
-    options: [
-      { id: "deploy", label: "배포", desc: "작은 범위의 결과를 근거로 배포해요." },
-      { id: "no_deploy", label: "배포 안 함", desc: "이번 결과로는 배포하지 않아요." },
-      { id: "extend_rerun", label: "기간 연장 재실험", desc: "더 길게 다시 확인해요." },
-    ],
-  },
-  p2: {
-    options: [
-      { id: "full_deploy", label: "전면 배포", desc: "모든 화면과 OS 에 배포해요." },
-      { id: "no_deploy", label: "배포 안 함", desc: "배포하지 않아요." },
-      { id: "deploy_followup", label: "배포 + 보조 지표 발견으로 후속 실험", desc: "배포하고, 보조 지표에서 찾은 가설을 다음 실험으로 이어가요." },
-    ],
-  },
-  p3: {
-    options: [
-      { id: "rollback", label: "롤백", desc: "넛지 문구를 되돌려요." },
-      { id: "deploy", label: "배포", desc: "그대로 배포해요." },
-      { id: "expand_rerun", label: "노출 조건 확대 후 재실험", desc: "마케팅 협업으로 노출 대상을 늘려 다시 확인해요." },
-    ],
-  },
-  p4: {
-    options: [
-      { id: "deploy_b", label: "B 배포", desc: "항상 노출하는 안을 배포해요." },
-      { id: "deploy_c", label: "C 배포", desc: "부족 금액 8천 원 이하일 때만 노출하는 안을 배포해요." },
-      { id: "none_learn", label: "둘 다 배포 안 함 + 학습 정리", desc: "배포하지 않고 이번 실험에서 배운 점을 정리해요." },
-    ],
-  },
 };
 
 export const reveal: Record<string, string> = {

@@ -48,12 +48,16 @@ export type Readout = {
   costs?: Record<string, number>;
 };
 
-/** 조 화면 API 응답용: flags 와 "_" 패널을 제거한 사본. 원본은 바꾸지 않는다. */
-export type TeamReadout = Omit<Readout, "flags">;
+/**
+ * 조 화면 API 응답용: flags, achievedPower(진짜 효과에서 계산한 값이라 효과 크기를 드러냄), "_" 패널을 제거한 사본.
+ * 원본은 바꾸지 않는다.
+ */
+export type TeamReadout = Omit<Readout, "flags" | "achievedPower">;
 
 export function toTeamView(readout: Readout): TeamReadout {
-  const { flags: _flags, panels, ...rest } = readout;
+  const { flags: _flags, achievedPower: _power, panels, ...rest } = readout;
   void _flags;
+  void _power;
   const visible = Object.fromEntries(Object.entries(panels).filter(([k]) => !k.startsWith("_")));
   return { ...rest, panels: visible };
 }
