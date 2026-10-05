@@ -4,6 +4,9 @@ import type { Series } from "@/components/readout/TimeSeries";
 import type { CaseKey } from "@/lib/cases";
 import { BaeminDiagnosePanel } from "./baemin/DiagnosePanel";
 import { BaeminPanels } from "./baemin/Panels";
+import { DaangnDiagnosePanel } from "./daangn/DiagnosePanel";
+import { DaangnPanels } from "./daangn/Panels";
+import { daangnSeries } from "./daangn/series";
 import { baeminSeries } from "./baemin/series";
 import { TossDesignAside } from "./toss/DesignAside";
 import { TossDiagnosePanel } from "./toss/DiagnosePanel";
@@ -24,6 +27,7 @@ export type CaseUi = {
 
 const CASE_UI: Partial<Record<CaseKey, CaseUi>> = {
   baemin: { Diagnose: BaeminDiagnosePanel, Panels: BaeminPanels, series: baeminSeries },
+  daangn: { Diagnose: DaangnDiagnosePanel, Panels: DaangnPanels, series: daangnSeries, armLabels: { A: "A (대조군)", B: "B (실험군)" } },
   toss: {
     Diagnose: TossDiagnosePanel, DesignAside: TossDesignAside, Panels: TossPanels, series: tossSeries, periodUnit: "주",
     armLabels: { A: "A (대조군)", B: "V1", C: "V2" },
