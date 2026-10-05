@@ -176,3 +176,22 @@
 | 실무 사례 | 🔗 Netflix Tech Blog, 🔗 Uber Engineering "Under the Hood of Uber's Experimentation Platform", 🔗 Eppo Blog, 🔗 Statsig Blog |
 | 도구 | 🔗 Evan Miller's A/B Test Calculator |
 | 한국어 | 🇰🇷 데이터리안 "A/B 테스트란"(입문) → 데이터리안 YouTube → 토스 기술 블로그 "진짜 A/B 테스트" 순서 추천 |
+
+---
+
+## 7. 덱 제작 기록
+
+초안: [`ab-testing-theory.pptx`](ab-testing-theory.pptx) (58장)
+
+### 시간 때문에 뺀 슬라이드 (2026-10-05)
+
+위키 03편을 반영하자 Ch2 본문이 20장이 되어 20분에 맞지 않았습니다. 아래 세 장은 덱에서 빼고 위키로 대신합니다. 필요하면 위키 해당 절을 보고 다시 넣으면 됩니다.
+
+| 뺀 슬라이드 | 핵심 내용 | 대신 볼 곳 |
+| --- | --- | --- |
+| 노스스타는 방향을, OEC는 이번 실험을 판단한다 | NSM vs OEC 비교표 (핵심 질문, 적용 범위, 역할, 측정 조건, 장기 목표와의 관계) | [위키 03편 2.1.2](../ab-testing/03-metrics.md) |
+| Driver 지표는 Primary가 움직인 경로를 보여준다 | 추천 → CTR → 상세 → 장바구니 → 구매 경로, Secondary vs Driver 표, Driver는 인과 증명이 아니라는 주의 | [위키 03편 2.3](../ab-testing/03-metrics.md) |
+| 지표가 목표가 되면 더 이상 좋은 지표가 아니다 | 굿하트의 법칙, 지표는 proxy, 유의성이 지표 선택의 타당성을 보장하지 않음 | [위키 03편 2.5](../ab-testing/03-metrics.md) |
+
+- 필수 개념인 "OEC와 노스스타의 연결"(4-2)은 OEC 슬라이드 하단의 한 줄로 남겼습니다.
+- 지표 층 슬라이드에는 "Secondary · Driver"라는 이름이 그대로 남아 있습니다. 발표할 때 Driver는 한 문장으로만 설명합니다.
