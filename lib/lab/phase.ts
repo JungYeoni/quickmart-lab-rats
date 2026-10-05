@@ -20,10 +20,11 @@ export function submissionKindOf(kind: PhaseDef["kind"]): SubmissionKind | null 
   return null;
 }
 
-export const decisionSchema = (optionIds: string[]) =>
+export const decisionSchema = (optionIds: string[], fields: { name: string; label: string }[] = []) =>
   z.object({
     option: z.string().refine((v) => optionIds.includes(v), "선택지 중에서 골라주세요"),
     rationale: z.string().trim().min(1, "근거를 적어주세요"),
+    ...Object.fromEntries(fields.map((f) => [f.name, z.string().trim().min(1, `${f.label}을(를) 적어주세요`)])),
   });
 
 export type Submission = { step: string; phase: string; kind: SubmissionKind; payload: Record<string, unknown>; version: number };

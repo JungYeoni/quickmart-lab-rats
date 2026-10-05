@@ -4,6 +4,9 @@ type Stat = { n: number; x?: number; mean?: number; sd?: number };
 
 export const fmtInt = (n: number) => Math.round(n).toLocaleString("ko-KR");
 
+/** 큰 값은 정수로, 100 미만은 소수 둘째 자리까지 (예: 인당 클릭 수 1.14) */
+export const fmtNum = (v: number) => (Math.abs(v) < 100 ? v.toFixed(2) : fmtInt(v));
+
 export function fmtPct(v: number, digits = 2) {
   return `${(v * 100).toFixed(digits)}%`;
 }
@@ -14,7 +17,8 @@ const digitsFor = (key: string) => (key === "crash" ? 3 : 2);
 export function fmtValue(m: Pick<MetricResult, "key" | "type">, s: Stat | undefined): string {
   if (!s || s.n === 0) return "–";
   if (m.type === "prop") return fmtPct((s.x ?? 0) / s.n, digitsFor(m.key));
-  return fmtInt(s.mean ?? 0);
+  if (m.type === "ratio") return fmtPct(s.mean ?? 0, 2);
+  return fmtNum(s.mean ?? 0);
 }
 
 export function statValue(m: Pick<MetricResult, "type">, s: Stat | undefined): number {
@@ -26,7 +30,8 @@ export function statValue(m: Pick<MetricResult, "type">, s: Stat | undefined): n
 export function fmtDiff(m: Pick<MetricResult, "key" | "type">, d: number): string {
   const sign = d > 0 ? "+" : d < 0 ? "−" : "";
   const a = Math.abs(d);
-  return m.type === "prop" ? `${sign}${(a * 100).toFixed(digitsFor(m.key))}%p` : `${sign}${fmtInt(a)}`;
+  if (m.type === "prop" || m.type === "ratio") return `${sign}${(a * 100).toFixed(digitsFor(m.key))}%p`;
+  return `${sign}${a < 10 ? a.toFixed(3) : fmtInt(a)}`;
 }
 
 export function fmtRel(r: number): string {
@@ -42,3 +47,5 @@ export function fmtP(p: number): string {
 
 export const ROLE_LABEL = { P: "메인", G: "가드레일", S: "보조" } as const;
 export const ARM_LABEL: Record<string, string> = { A: "A (대조군)", B: "B", C: "C", D: "D" };
+/** 사례가 그룹 이름을 따로 쓰면(예: V1·V2) 이 표로 덮어쓴다 */
+export type ArmLabels = Partial<Record<string, string>>;

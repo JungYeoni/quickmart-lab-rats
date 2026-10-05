@@ -85,12 +85,12 @@ function Phase({ ctx, def }: { ctx: Ctx; def: PhaseDef }) {
     case "readout":
       return <RunPhase ctx={ctx} def={def} hasDesign={hasDesign} modes={["main"]} />;
     case "decide":
-      return <DecidePhase ctx={ctx} sim={sim} hasDesign={hasDesign} />;
+      return <DecidePhase ctx={ctx} sim={sim} hasDesign={!!latestOf(ctx.subs, ctx.client.decisions[sim]?.requires ?? sim, "design")} />;
   }
 }
 
 function FormPhase({ ctx, def, sim, kind, initial }: { ctx: Ctx; def: PhaseDef; sim: string; kind: "design" | "diagnosis"; initial: Obj }) {
-  const { Diagnose } = getCaseUi(ctx.client.key);
+  const { Diagnose, DesignAside } = getCaseUi(ctx.client.key);
   const [value, setValue] = useState<Obj>(initial);
   const [errors, setErrors] = useState<string[]>([]);
   const [msg, setMsg] = useState("");
@@ -113,6 +113,7 @@ function FormPhase({ ctx, def, sim, kind, initial }: { ctx: Ctx; def: PhaseDef; 
   return (
     <div className="space-y-4">
       {def.kind === "diagnose" && Diagnose && <Diagnose />}
+      {def.kind === "design" && DesignAside && <DesignAside phase={sim} value={value} />}
       <AutoForm meta={ctx.client.formMeta[sim]} value={value} onChange={setValue} disabled={!editable} />
       {errors.length > 0 && (
         <ul role="alert" className="list-disc space-y-0.5 rounded-lg bg-neg-soft py-2 pl-7 pr-3 text-sm text-neg">
@@ -130,7 +131,7 @@ function FormPhase({ ctx, def, sim, kind, initial }: { ctx: Ctx; def: PhaseDef; 
 function RunPhase({ ctx, def, hasDesign, modes }: { ctx: Ctx; def: PhaseDef; hasDesign: boolean; modes: ("aa" | "main")[] }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [shown, setShown] = useState<"aa" | "main">(modes[modes.length - 1]);
-  const { Panels } = getCaseUi(ctx.client.key);
+  const { Panels, series, periodUnit, armLabels } = getCaseUi(ctx.client.key);
   const locked = ctx.status === "locked" && ctx.adapter.mode === "remote";
 
   async function run(mode: "aa" | "main") {
@@ -169,7 +170,7 @@ function RunPhase({ ctx, def, hasDesign, modes }: { ctx: Ctx; def: PhaseDef; has
       </div>
       {result && "error" in result && <ErrorText>{result.error}</ErrorText>}
       {result && !("error" in result) && (
-        <ReadoutView readout={result}>{Panels && <Panels phase={def.key} panels={result.panels} />}</ReadoutView>
+        <ReadoutView readout={result} series={series} periodUnit={periodUnit} armLabels={armLabels}>{Panels && <Panels phase={def.key} panels={result.panels} />}</ReadoutView>
       )}
     </div>
   );
@@ -177,9 +178,12 @@ function RunPhase({ ctx, def, hasDesign, modes }: { ctx: Ctx; def: PhaseDef; has
 
 function DecidePhase({ ctx, sim, hasDesign }: { ctx: Ctx; sim: string; hasDesign: boolean }) {
   const saved = latestOf(ctx.subs, sim, "decision");
-  const options = ctx.client.decisions[sim]?.options ?? [];
+  const def = ctx.client.decisions[sim];
+  const options = def?.options ?? [];
+  const fields = def?.fields ?? [];
   const [option, setOption] = useState<string>((saved?.payload.option as string) ?? "");
   const [rationale, setRationale] = useState<string>((saved?.payload.rationale as string) ?? "");
+  const [extra, setExtra] = useState<Record<string, string>>(() => Object.fromEntries(fields.map((f) => [f.name, (saved?.payload[f.name] as string) ?? ""])));
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
@@ -187,8 +191,8 @@ function DecidePhase({ ctx, sim, hasDesign }: { ctx: Ctx; sim: string; hasDesign
 
   async function submit() {
     setMsg("");
-    const parsed = decisionSchema(options.map((o) => o.id)).safeParse({ option, rationale });
-    if (!parsed.success) return setErr(option ? "근거를 적어주세요" : "선택지 중에서 골라주세요");
+    const parsed = decisionSchema(options.map((o) => o.id), fields).safeParse({ option, rationale, ...extra });
+    if (!parsed.success) return setErr(option ? parsed.error.issues[0].message : "선택지 중에서 골라주세요");
     setErr("");
     setBusy(true);
     const r = await ctx.adapter.submit({ step: ctx.step, phase: sim, kind: "decision", payload: parsed.data });
@@ -213,6 +217,13 @@ function DecidePhase({ ctx, sim, hasDesign }: { ctx: Ctx; sim: string; hasDesign
         <label htmlFor={`rat-${sim}`} className="mb-1 block text-sm font-semibold">결정한 근거</label>
         <textarea id={`rat-${sim}`} rows={3} className={inputClass} value={rationale} disabled={!editable} onChange={(e) => setRationale(e.target.value)} />
       </div>
+      {fields.map((f) => (
+        <div key={f.name}>
+          <label htmlFor={`${f.name}-${sim}`} className="mb-1 block text-sm font-semibold">{f.label}</label>
+          {f.help && <p className="mb-1.5 text-xs text-ink3">{f.help}</p>}
+          <textarea id={`${f.name}-${sim}`} rows={3} className={inputClass} value={extra[f.name] ?? ""} disabled={!editable} onChange={(e) => setExtra((x) => ({ ...x, [f.name]: e.target.value }))} />
+        </div>
+      ))}
       <ErrorText>{err}</ErrorText>
       <div className="flex items-center gap-3">
         <Button onClick={submit} disabled={!editable || busy}>{busy ? "제출 중…" : "결정 제출"}</Button>

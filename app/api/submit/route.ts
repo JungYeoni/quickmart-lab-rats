@@ -29,8 +29,8 @@ export async function POST(req: Request) {
   if (st?.status !== "open") return fail("이 스텝은 지금 열려 있지 않아요. 강사님이 열면 제출할 수 있어요.", 409);
 
   if (kind === "decision") {
-    const ids = (plugin.decisions[phase]?.options ?? []).map((o) => o.id);
-    const parsed = decisionSchema(ids).safeParse(payload);
+    const dec = plugin.decisions[phase];
+    const parsed = decisionSchema((dec?.options ?? []).map((o) => o.id), dec?.fields).safeParse(payload);
     if (!parsed.success) return fail(parsed.error.issues[0].message);
   } else {
     const schema = plugin.designSchema[phase];

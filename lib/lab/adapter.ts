@@ -40,31 +40,31 @@ export function createRemoteAdapter(code: string, teamId: string): LabAdapter {
   };
 }
 
-const DEMO_KEY = "lab:demo:baemin";
+const demoKey = (caseKey: string) => `lab:demo:${caseKey}`;
 
-function readDemo(): Submission[] {
+function readDemo(caseKey: string): Submission[] {
   try {
-    return JSON.parse(localStorage.getItem(DEMO_KEY) ?? "[]");
+    return JSON.parse(localStorage.getItem(demoKey(caseKey)) ?? "[]");
   } catch {
     return [];
   }
 }
 
-export function resetDemo() {
+export function resetDemo(caseKey = "baemin") {
   try {
-    localStorage.removeItem(DEMO_KEY);
+    localStorage.removeItem(demoKey(caseKey));
   } catch {}
 }
 
 /** 데모: 제출을 localStorage 에 두고, 시뮬레이션은 DB 가 필요 없는 /api/demo/simulate 로 돌린다 */
-export function createDemoAdapter(): LabAdapter {
+export function createDemoAdapter(caseKey = "baemin"): LabAdapter {
   const simulateDemo = async (phase: string, mode: "main" | "aa", design: Record<string, unknown>) =>
-    post<{ readout: TeamReadout }>("/api/demo/simulate", { phase, mode, design });
+    post<{ readout: TeamReadout }>("/api/demo/simulate", { caseKey, phase, mode, design });
 
   return {
     mode: "demo",
     async loadSubmissions() {
-      return readDemo();
+      return readDemo(caseKey);
     },
     async submit(input) {
       // 서버와 같은 규칙: 시뮬레이션이 거부할 설계는 제출 단계에서 알려준다
@@ -72,12 +72,12 @@ export function createDemoAdapter(): LabAdapter {
         const r = await simulateDemo(input.phase, "main", input.payload);
         if (!r.ok) return r;
       }
-      const subs = readDemo();
+      const subs = readDemo(caseKey);
       const prev = subs.find((s) => s.phase === input.phase && s.kind === input.kind);
       const version = (prev?.version ?? 0) + 1;
       const next = subs.filter((s) => s !== prev).concat({ ...input, version });
       try {
-        localStorage.setItem(DEMO_KEY, JSON.stringify(next));
+        localStorage.setItem(demoKey(caseKey), JSON.stringify(next));
       } catch {
         return { ok: false, error: "브라우저에 저장하지 못했어요." };
       }
@@ -85,7 +85,7 @@ export function createDemoAdapter(): LabAdapter {
     },
     async simulate({ phase, mode }) {
       const sim = simPhaseOf(phase);
-      const design = readDemo().find((s) => s.phase === sim && s.kind === "design");
+      const design = readDemo(caseKey).find((s) => s.phase === sim && s.kind === "design");
       if (!design) return { ok: false, error: "먼저 설계를 제출해 주세요." };
       return simulateDemo(phase, mode, design.payload);
     },

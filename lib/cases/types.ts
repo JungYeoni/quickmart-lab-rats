@@ -25,6 +25,14 @@ export type FieldMeta = {
 };
 
 export type DecisionOption = { id: string; label: string; desc: string };
+/** 결정과 함께 적는 추가 글칸(예: 공지 초안). 필수. */
+export type DecisionField = { name: string; label: string; help?: string };
+export type DecisionDef = {
+  options: DecisionOption[];
+  fields?: DecisionField[];
+  /** 이 결정 전에 설계가 제출돼 있어야 하는 Phase(기본: 같은 Phase). 설계가 없는 최종 결정은 앞 Phase 를 가리킨다. */
+  requires?: string;
+};
 
 export interface CasePlugin<D = unknown> {
   key: CaseKey;
@@ -39,7 +47,7 @@ export interface CasePlugin<D = unknown> {
   phases: PhaseDef[];
   designSchema: Record<string, ZodType>;
   formMeta: Record<string, FieldMeta[]>;
-  decisions: Record<string, { options: DecisionOption[] }>;
+  decisions: Record<string, DecisionDef>;
   /** 폼의 초기값. prev 는 같은 사례의 앞 Phase 에서 제출한 설계(있으면 이어받는다). */
   defaultDesign(phase: string, prev?: Record<string, unknown>): Record<string, unknown>;
   /** 설계가 유효하지 않으면 SimulationRejected 를 던진다 */

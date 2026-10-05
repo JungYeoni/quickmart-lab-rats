@@ -1,12 +1,13 @@
 import type { Arm, MetricResult } from "@/lib/sim/core/readout";
 import { Badge } from "../ui";
 import { CIBar } from "./CIBar";
-import { ARM_LABEL, ROLE_LABEL, fmtDiff, fmtP, fmtRel, fmtValue } from "./format";
+import { ARM_LABEL, ROLE_LABEL, type ArmLabels, fmtDiff, fmtP, fmtRel, fmtValue } from "./format";
 
 const ROLE_ORDER = { P: 0, G: 1, S: 2 } as const;
 
 /** 지표 표: 메인 → 가드레일 → 보조 순. 처치군마다 대조군(A) 대비 차이·신뢰구간·p 값을 보여준다. */
-export function MetricTable({ metrics }: { metrics: MetricResult[] }) {
+export function MetricTable({ metrics, armLabels = {} }: { metrics: MetricResult[]; armLabels?: ArmLabels }) {
+  const label = (a: string) => armLabels[a] ?? ARM_LABEL[a];
   const sorted = [...metrics].sort((a, b) => ROLE_ORDER[a.role] - ROLE_ORDER[b.role]);
   const arms = (["A", "B", "C", "D"] as Arm[]).filter((a) => metrics.some((m) => m.arms[a]));
   const treat = arms.filter((a) => a !== "A");
@@ -16,8 +17,8 @@ export function MetricTable({ metrics }: { metrics: MetricResult[] }) {
         <thead>
           <tr className="border-b border-line text-left text-xs text-ink3">
             <th className="py-2 pr-3 font-medium">지표</th>
-            {arms.map((a) => <th key={a} className="px-2 py-2 text-right font-medium">{ARM_LABEL[a]}</th>)}
-            {treat.map((a) => <th key={a} className="px-2 py-2 font-medium">{a} − A 차이 (95% 신뢰구간)</th>)}
+            {arms.map((a) => <th key={a} className="px-2 py-2 text-right font-medium">{label(a)}</th>)}
+            {treat.map((a) => <th key={a} className="px-2 py-2 font-medium">{armLabels[a]?.split(" ")[0] ?? a} − A 차이 (95% 신뢰구간)</th>)}
           </tr>
         </thead>
         <tbody>
