@@ -72,6 +72,16 @@ describe("propTest / meanTest", () => {
     const b = propTest({ x: 200, n: 1000 }, { x: 240, n: 1000 }, 0.01);
     expect(b.ci[1] - b.ci[0]).toBeGreaterThan(a.ci[1] - a.ci[0]);
   });
+  it("seScale 은 SE 만 줄여 p 값과 신뢰구간 폭을 비례해서 바꾼다 (단위 불일치 재현)", () => {
+    const full = propTest({ x: 200, n: 1000 }, { x: 240, n: 1000 });
+    const half = propTest({ x: 200, n: 1000 }, { x: 240, n: 1000 }, 0.05, 0.5);
+    close(half.d, full.d);
+    close(half.se, full.se / 2, 1e-12);
+    close(half.z, full.z * 2, 1e-9);
+    expect(half.p).toBeLessThan(full.p);
+    const m = meanTest({ m: 1, sd: 5, n: 100 }, { m: 2, sd: 5, n: 100 }, 0.05, 0.5);
+    close(m.se, meanTest({ m: 1, sd: 5, n: 100 }, { m: 2, sd: 5, n: 100 }).se / 2, 1e-12);
+  });
   it("meanTest: 평균 100 vs 102, SD 20, n 400 → z ≈ 1.414", () => {
     const r = meanTest({ m: 100, sd: 20, n: 400 }, { m: 102, sd: 20, n: 400 });
     close(r.z, 2 / Math.sqrt(2), 1e-9);
