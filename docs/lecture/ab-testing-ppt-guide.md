@@ -181,7 +181,7 @@
 
 ## 7. 덱 제작 기록
 
-초안: [`ab-testing-theory.pptx`](ab-testing-theory.pptx) (66장)
+초안: [`ab-testing-theory.pptx`](ab-testing-theory.pptx) (67장)
 
 ### 시간 때문에 뺀 슬라이드 (2026-10-05)
 
@@ -223,4 +223,5 @@
 | 산업 사례 표의 한국 사례를 토스(TUBA)로 교체 | Ch5 | 04편 1.2 |
 
 - 위키 05편 3.5에 배정(Assignment)과 노출(Exposure)을 구분하는 내용이 생겨, 트리거 분석 슬라이드 노트에 연결했습니다.
-- 위키 04편 3.2(인프라와 도구), 05편 3.6(Randomization Unit과 Analysis Unit)은 아직 작성 전이라 반영하지 않았습니다.
+- 위키 04편 3.2(인프라와 도구)는 아직 작성 전이라 반영하지 않았습니다.
+- (2026-10-07) 위키 05편 3.6(Randomization Unit과 Analysis Unit)이 채워져 Ch3 검정 선택 다음에 "배정 단위보다 작은 단위로 분석하면 신뢰구간이 좁아진다" 슬라이드를 추가했습니다.
