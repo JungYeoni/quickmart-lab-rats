@@ -22,5 +22,17 @@ export const classReviewSchema = z.object({
 });
 export type ClassReview = z.infer<typeof classReviewSchema>;
 
-export type ReviewScope = "team" | "class";
+/** s8 직소 브리핑: 조마다 2분 발표 초안. 계약(docs/review-contract.md §3)의 조별 객체를 한 번의 호출로 모두 만든다. */
+export const shareReviewSchema = z.object({
+  briefs: z.array(z.object({
+    team: z.string(),
+    case: z.string(),
+    story_in_3_lines: z.array(z.string()).max(3),
+    traps_we_hit: z.array(z.string()).max(6),
+    one_lesson_for_other_teams: z.string(),
+  })),
+});
+export type ShareReview = z.infer<typeof shareReviewSchema>;
+
+export type ReviewScope = "team" | "class" | "share";
 export type ReviewResult<T> = { output: T; model: string; cached: boolean; createdAt: string };

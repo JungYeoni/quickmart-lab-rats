@@ -7,7 +7,8 @@ import { useClassLive } from "@/lib/use-class-live";
 import { StatusBadge } from "./StatusBadge";
 import { LiveBoard } from "./admin/LiveBoard";
 import { ClassReviewPanel } from "./review/ClassReviewPanel";
-import { Button, Card, ErrorText } from "./ui";
+import { SharePanel } from "./review/SharePanel";
+import { Badge, Button, Card, ErrorText } from "./ui";
 
 const ACTION_LABELS: Record<StepStatus, string> = { locked: "잠금", open: "열기", closed: "마감" };
 
@@ -15,6 +16,17 @@ const ACTION_LABELS: Record<StepStatus, string> = { locked: "잠금", open: "열
 export function InstructorBoard({ code }: { code: string }) {
   const { cls, teams, steps, error, loading } = useClassLive(code);
   const [msg, setMsg] = useState("");
+  const [revealMsg, setRevealMsg] = useState("");
+
+  async function setReveal(reveal: boolean) {
+    setRevealMsg("");
+    const res = await fetch("/api/admin/reveal", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code, reveal }),
+    });
+    if (!res.ok) setRevealMsg((await res.json()).error ?? "바꾸지 못했어요.");
+  }
 
   async function setStatus(step: StepKey, status: StepStatus) {
     setMsg("");
@@ -92,8 +104,21 @@ export function InstructorBoard({ code }: { code: string }) {
         {unpicked.length > 0 && <p className="mt-4 text-ink2">사례를 아직 고르지 않은 조: {unpicked.map((t) => t.name).join(", ")}</p>}
       </Card>
 
+      <Card>
+        <div className="flex flex-wrap items-center gap-3">
+          <h2 className="text-xl font-bold">정답 공개</h2>
+          <Badge tone={cls.reveal_answers ? "run" : "draft"}>{cls.reveal_answers ? "공개 중" : "비공개"}</Badge>
+          <Button className="ml-auto" variant={cls.reveal_answers ? "ghost" : "primary"} onClick={() => setReveal(!cls.reveal_answers)}>
+            {cls.reveal_answers ? "다시 숨기기" : "정답 공개하기"}
+          </Button>
+        </div>
+        <p className="mt-1 text-sm text-ink3">켜면 조 화면에 원문 비교 해설과 각 조의 시뮬레이션이 심어 둔 함정이 나타나고, AI 피드백이 원문과 비교해 줘요. 직소 공유 전에 켜세요.</p>
+        <ErrorText>{revealMsg}</ErrorText>
+      </Card>
+
       <LiveBoard code={code} allowedCases={cls.allowed_cases} />
       <ClassReviewPanel code={code} />
+      <SharePanel code={code} />
     </main>
   );
 }

@@ -7,6 +7,9 @@ import { createRemoteAdapter } from "@/lib/lab/adapter";
 import { STEP_KEYS, STEP_LABELS, type StepKey } from "@/lib/steps";
 import { countByCase } from "@/lib/team-case";
 import { useClassLive } from "@/lib/use-class-live";
+import { ShareStep } from "./lab/ShareStep";
+import { TrapLab } from "./lab/TrapLab";
+import { RevealCard } from "./review/RevealCard";
 import { TeamReviewCard } from "./review/TeamReviewCard";
 import { StatusBadge } from "./StatusBadge";
 import { StepView } from "./StepView";
@@ -88,16 +91,26 @@ export function TeamScreen({ code, teamId }: { code: string; teamId: string }) {
         <div className="mx-auto max-w-4xl">
           <h1 className="mb-1 mt-4 text-3xl font-bold tracking-tight">{STEP_LABELS[active]}</h1>
           {active !== "s0_pick" ? (
-            active === "s7_lab" || active === "s8_share" ? (
-              <Card className="mt-4"><p className="text-ink2">이 스텝의 화면은 다음 마일스톤에서 만들어요.</p></Card>
+            active === "s7_lab" ? (
+              <div className="mt-4">
+                {steps.s7_lab === "locked" && <p className="mb-3 rounded-lg bg-warn-soft px-3 py-2 text-sm text-warn">강사님이 이 스텝을 열면 진행할 수 있어요. (계산은 미리 해 봐도 돼요.)</p>}
+                <TrapLab />
+              </div>
             ) : !me.case_key ? (
               <Card className="mt-4"><p className="text-ink2">먼저 &lsquo;사례 선택&rsquo; 스텝에서 사례를 골라주세요.</p></Card>
             ) : !clientCase ? (
               <Card className="mt-4"><p className="text-ink2">이 사례의 화면은 아직 준비 중이에요. 강사님께 알려주세요.</p></Card>
             ) : (
               <div className="mt-4">
-                <StepView key={active} client={clientCase} step={active} status={steps[active] ?? "locked"} adapter={adapter} />
-                <div className="mt-5"><TeamReviewCard key={active} code={code} teamId={teamId} step={active} /></div>
+                {active === "s8_share" ? (
+                  <ShareStep code={code} teamId={teamId} teamName={me.name} client={clientCase} status={steps.s8_share ?? "locked"} adapter={adapter} />
+                ) : (
+                  <>
+                    <StepView key={active} client={clientCase} step={active} status={steps[active] ?? "locked"} adapter={adapter} />
+                    <div className="mt-5"><TeamReviewCard key={`${active}-${cls.reveal_answers}`} code={code} teamId={teamId} step={active} /></div>
+                    {cls.reveal_answers && <div className="mt-5"><RevealCard key={active} code={code} teamId={teamId} step={active} /></div>}
+                  </>
+                )}
               </div>
             )
           ) : (

@@ -1,0 +1,60 @@
+import { describe, expect, it, vi } from "vitest";
+import { baeminPlugin } from "@/lib/cases/baemin";
+import { mockShareReview, scrubShareReview, leaksFlag } from "@/lib/review/prompts";
+import { shareReviewSchema } from "@/lib/review/types";
+import type { Readout } from "@/lib/sim/core";
+import { buildReveal, latestRunPerPhase, type RunRow } from "../reveal";
+
+vi.mock("server-only", () => ({}));
+
+const readout = (flags: Readout["flags"], power?: number) => ({ caseKey: "baemin", phase: "p1", designHash: "h", periods: [], metrics: [], panels: {}, flags, achievedPower: power }) as Readout;
+const run = (phase: string, at: string, flags: Readout["flags"], aa = false, team = "t1"): RunRow => ({
+  team_id: team, phase, design: aa ? { aa: true } : {}, result: readout(flags, 0.4), created_at: at,
+});
+
+describe("정답 공개", () => {
+  it("조의 Phase 별 최신 본 실험만 고른다 (A/A, 다른 조 제외)", () => {
+    const m = latestRunPerPhase([
+      run("p1", "2026-01-01", ["SRM"]), run("p1", "2026-01-02", ["PEEKED"]), run("p1", "2026-01-03", ["NOVELTY"], true), run("p1", "2026-01-04", ["SRM"], false, "t2"),
+    ], "t1");
+    expect(m.get("p1")!.result.flags).toEqual(["PEEKED"]);
+    expect(m.size).toBe(1);
+  });
+
+  it("원문 비교 해설은 Phase 가 속한 스텝에 붙고, 함정은 이름과 함께 나온다", () => {
+    const out = buildReveal(baeminPlugin, [run("p1", "2026-01-02", ["SRM", "PEEKED"])], "t1");
+    expect(out.items.length).toBeGreaterThan(0);
+    for (const i of out.items) expect(baeminPlugin.phases.some((p) => p.step === i.step)).toBe(true);
+    expect(out.flags).toHaveLength(1);
+    expect(out.flags[0].flags.map((f) => f.code)).toEqual(["SRM", "PEEKED"]);
+    expect(out.flags[0].flags[0].label).toBeTruthy();
+    expect(out.flags[0].achievedPower).toBe(0.4);
+  });
+});
+
+describe("직소 브리핑", () => {
+  const input = {
+    step: "s8_share",
+    teams: [
+      { team: "1조", case: "baemin", flags: ["SRM" as const], decisions: ["P1 결정: 배포 — 표본이 충분해요"], memo: { learned: "SRM 이 중요", lesson: "먼저 의심하자" } },
+      { team: "2조", case: "toss", flags: [], decisions: [], memo: null },
+    ],
+  };
+
+  it("mock 브리핑은 스키마를 지키고 조마다 하나씩 나온다", () => {
+    const out = mockShareReview(input);
+    expect(shareReviewSchema.safeParse(out).success).toBe(true);
+    expect(out.briefs.map((b) => b.team)).toEqual(["1조", "2조"]);
+    expect(out.briefs[0].traps_we_hit.length).toBe(1);
+  });
+
+  it("정답 공개 전에는 함정 이름이 든 문장을 뺀다", () => {
+    const out = mockShareReview(input);
+    expect(out.briefs[0].traps_we_hit.some(leaksFlag)).toBe(true);
+    const scrubbed = scrubShareReview(out);
+    expect(scrubbed.briefs[0].traps_we_hit).toEqual([]);
+    expect(JSON.stringify(scrubbed)).not.toMatch(/SRM|표본 비율 불일치/);
+    // 입력은 바뀌지 않는다
+    expect(out.briefs[0].traps_we_hit.length).toBe(1);
+  });
+});

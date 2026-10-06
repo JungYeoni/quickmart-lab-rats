@@ -39,6 +39,8 @@
 ## 3. scope = share (직소 공유용, s8)
 조별 2분 브리핑 초안 생성: `{ "case", "story_in_3_lines", "traps_we_hit": [...], "one_lesson_for_other_teams": "..." }`
 
+구현(M8): 비용을 아끼려고 조마다 호출하지 않고 **한 번의 호출로 모든 조를 만든다.** 출력은 위 객체에 `team` 을 더해 `{ "briefs": [ ... ] }` 로 감싼다. 입력은 조별 `{ team, case, memo, decisions, flags }`(결정 메모 + 결정 요약 + 시뮬레이션 함정). 강사만 만들 수 있고(`scope=share`, `team_id` null), 조 화면은 `/api/share` 로 최신 결과를 읽는다. 정답 공개 전에는 함정 이름이 든 문장을 서버에서 걸러서 내려준다(규칙 3).
+
 ## 4. 비용 가드
 - team: 제출 1회당 1번, 재제출 30초 쿨다운 / class·share: 강사 버튼, 스텝당 30초 스로틀
 - input_hash 동일 시 ai_reviews 캐시 재사용
