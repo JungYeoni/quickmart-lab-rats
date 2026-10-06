@@ -7,6 +7,7 @@ import { createRemoteAdapter } from "@/lib/lab/adapter";
 import { STEP_KEYS, STEP_LABELS, type StepKey } from "@/lib/steps";
 import { countByCase } from "@/lib/team-case";
 import { useClassLive } from "@/lib/use-class-live";
+import { TeamReviewCard } from "./review/TeamReviewCard";
 import { StatusBadge } from "./StatusBadge";
 import { StepView } from "./StepView";
 import { Badge, Button, Card, ErrorText } from "./ui";
@@ -96,6 +97,7 @@ export function TeamScreen({ code, teamId }: { code: string; teamId: string }) {
             ) : (
               <div className="mt-4">
                 <StepView key={active} client={clientCase} step={active} status={steps[active] ?? "locked"} adapter={adapter} />
+                <div className="mt-5"><TeamReviewCard key={active} code={code} teamId={teamId} step={active} /></div>
               </div>
             )
           ) : (

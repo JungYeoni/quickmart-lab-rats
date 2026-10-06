@@ -29,6 +29,13 @@ export const setStepBody = z.object({
   status: z.enum(STEP_STATUSES),
 });
 
+export const reviewBody = z.object({
+  code: classCode,
+  step: z.enum(STEP_KEYS),
+  scope: z.enum(["team", "class"]),
+  teamId: z.string().uuid().optional(),
+});
+
 export const submitBody = z.object({
   code: classCode,
   teamId: z.string().uuid(),

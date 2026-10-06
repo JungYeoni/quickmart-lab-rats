@@ -14,6 +14,8 @@ const FORBIDDEN = [
   "lib/cases/baemin/simulate.ts",
   "lib/cases/baemin/index.ts",
   "lib/cases/registry.ts",
+  "lib/review/service.ts",
+  "lib/review/llm.ts",
   "lib/lab/sim-service.ts",
   "lib/supabase/server.ts",
   "lib/sim/core/crn.ts",
@@ -49,7 +51,7 @@ function closure(entry: string): Set<string> {
 const rel = (s: Set<string>) => [...s].map((f) => f.slice(ROOT.length + 1).replaceAll("\\", "/"));
 
 describe("클라이언트 번들 경계", () => {
-  for (const entry of ["components/StepView.tsx", "components/TeamScreen.tsx", "components/DemoBaemin.tsx", "components/admin/LiveBoard.tsx", "lib/cases/client-registry.ts", "lib/lab/adapter.ts"]) {
+  for (const entry of ["components/StepView.tsx", "components/TeamScreen.tsx", "components/DemoBaemin.tsx", "components/admin/LiveBoard.tsx", "components/review/ClassReviewPanel.tsx", "lib/cases/client-registry.ts", "lib/lab/adapter.ts"]) {
     it(`${entry} 에서 서버 전용 모듈로 이어지지 않는다`, () => {
       const files = rel(closure(entry));
       for (const bad of FORBIDDEN) expect(files, `${entry} → ${bad}`).not.toContain(bad);

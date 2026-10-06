@@ -6,6 +6,7 @@ import { countByCase } from "@/lib/team-case";
 import { useClassLive } from "@/lib/use-class-live";
 import { StatusBadge } from "./StatusBadge";
 import { LiveBoard } from "./admin/LiveBoard";
+import { ClassReviewPanel } from "./review/ClassReviewPanel";
 import { Button, Card, ErrorText } from "./ui";
 
 const ACTION_LABELS: Record<StepStatus, string> = { locked: "잠금", open: "열기", closed: "마감" };
@@ -92,6 +93,7 @@ export function InstructorBoard({ code }: { code: string }) {
       </Card>
 
       <LiveBoard code={code} allowedCases={cls.allowed_cases} />
+      <ClassReviewPanel code={code} />
     </main>
   );
 }
