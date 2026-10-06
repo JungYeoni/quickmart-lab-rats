@@ -9,16 +9,18 @@ const COLORS: Record<string, string> = { A: "var(--a)", B: "var(--blue)", C: "va
 export type Series = { key: string; label: string; value: (row: Record<string, number>) => number; pct: boolean; digits?: number };
 
 /** 기간별 그룹 비교 꺾은선 (프로토타입 lineChart 를 SVG 로 단순 포팅). 지표를 바꿔 볼 수 있다. */
-export function TimeSeries({ periods, series, periodUnit = "일", armLabels = {} }: { periods: PeriodRow[]; series: Series[]; periodUnit?: string; armLabels?: ArmLabels }) {
+export function TimeSeries({ periods, series: all, periodUnit = "일", armLabels = {} }: { periods: PeriodRow[]; series: Series[]; periodUnit?: string; armLabels?: ArmLabels }) {
+  // 이 단계의 데이터에 없는 시계열(다른 Phase 용)은 버튼을 만들지 않는다
+  const series = all.filter((s) => periods.some((p) => Object.values(p.arms).some((row) => Number.isFinite(s.value((row ?? {}) as Record<string, number>)))));
   const [key, setKey] = useState(series[0]?.key);
   const s = series.find((x) => x.key === key) ?? series[0];
   if (!s) return null;
   const arms = Object.keys(periods[0]?.arms ?? {});
   const data = arms.map((a) => ({ arm: a, v: periods.map((p) => s.value(p.arms[a as "A"] ?? {})) }));
-  const all = data.flatMap((d) => d.v).filter(Number.isFinite);
-  if (all.length === 0) return null;
-  const lo = Math.min(...all);
-  const hi = Math.max(...all);
+  const vals = data.flatMap((d) => d.v).filter(Number.isFinite);
+  if (vals.length === 0) return null;
+  const lo = Math.min(...vals);
+  const hi = Math.max(...vals);
   const pad = (hi - lo || Math.abs(hi) || 1) * 0.12;
   const W = 640, H = 220, L = 56, R = 12, T = 12, B = 26;
   const x = (i: number) => L + (periods.length === 1 ? 0 : (i / (periods.length - 1)) * (W - L - R));
