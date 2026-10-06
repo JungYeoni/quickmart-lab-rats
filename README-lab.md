@@ -27,7 +27,7 @@ quickmart-lab/
 
 ### Supabase 없이 먼저 화면 보기 (데모)
 
-`npm install` 후 `npm run dev` 를 실행하고 `http://localhost:3000/demo/baemin` 을 열면, DB 없이 배민 사례의 조 화면(진단 → 설계 → 실행 → 결과 → 결정)을 처음부터 끝까지 눌러볼 수 있어요. 제출한 내용은 그 브라우저에만 저장되고 왼쪽 아래 "데모 초기화"로 지울 수 있어요. 운영 배포에서는 기본적으로 꺼져 있고, 켜려면 `ENABLE_DEMO=1` 을 넣어요.
+`npm install` 후 `npm run dev` 를 실행하고 `http://localhost:3000/demo/baemin` (또는 `/demo/toss`)을 열면, DB 없이 사례의 조 화면(진단 → 설계 → 실행 → 결과 → 결정)을 처음부터 끝까지 눌러볼 수 있어요. 제출한 내용은 그 브라우저에만 저장되고 왼쪽 아래 "데모 초기화"로 지울 수 있어요. 운영 배포에서는 기본적으로 꺼져 있고, 켜려면 `ENABLE_DEMO=1` 을 넣어요.
 
 > 이미 예전 `schema.sql` 을 실행해 둔 DB 라면 SQL Editor 에서 다음 두 줄을 한 번 실행하세요. 숨긴 경고 플래그가 들어 있는 `sim_runs` 를 수강생이 직접 읽지 못하게 막는 거예요.
 > ```sql

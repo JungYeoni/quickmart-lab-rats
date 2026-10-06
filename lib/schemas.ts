@@ -55,6 +55,7 @@ export const simulateBody = z.object({
 });
 
 export const demoSimulateBody = z.object({
+  caseKey: z.enum(CASE_KEYS).default("baemin"),
   phase: z.string().min(1).max(40),
   mode: z.enum(["main", "aa"]).default("main"),
   design: z.record(z.string(), z.unknown()),
