@@ -131,7 +131,7 @@ function FormPhase({ ctx, def, sim, kind, initial }: { ctx: Ctx; def: PhaseDef; 
 function RunPhase({ ctx, def, hasDesign, modes }: { ctx: Ctx; def: PhaseDef; hasDesign: boolean; modes: ("aa" | "main")[] }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [shown, setShown] = useState<"aa" | "main">(modes[modes.length - 1]);
-  const { Panels, series, periodUnit, armLabels } = getCaseUi(ctx.client.key);
+  const { Panels, series, periodUnit, armLabels: baseLabels, armLabelsOf } = getCaseUi(ctx.client.key);
   const locked = ctx.status === "locked" && ctx.adapter.mode === "remote";
 
   async function run(mode: "aa" | "main") {
@@ -170,7 +170,7 @@ function RunPhase({ ctx, def, hasDesign, modes }: { ctx: Ctx; def: PhaseDef; has
       </div>
       {result && "error" in result && <ErrorText>{result.error}</ErrorText>}
       {result && !("error" in result) && (
-        <ReadoutView readout={result} series={series} periodUnit={periodUnit} armLabels={armLabels}>{Panels && <Panels phase={def.key} panels={result.panels} />}</ReadoutView>
+        <ReadoutView readout={result} series={series} periodUnit={periodUnit} armLabels={{ ...baseLabels, ...(armLabelsOf?.(result.panels) ?? {}) }}>{Panels && <Panels phase={def.key} panels={result.panels} />}</ReadoutView>
       )}
     </div>
   );
