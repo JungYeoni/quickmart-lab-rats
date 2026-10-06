@@ -5,7 +5,7 @@ import { ALL_FLAGS, FLAG_LABELS } from "@/lib/sim/core/flags";
 import { generateJson } from "../generate";
 import type { ReviewLLM } from "../llm";
 import { FLAG_NUDGES, leaksFlag, mockClassReview, mockTeamReview, scrubTeamReview, summarizeSim } from "../prompts";
-import { COOLDOWN_MS, ReviewError, reviewClass, reviewTeam } from "../service";
+import { COOLDOWN_MS, ReviewError, readShare, reviewClass, reviewShare, reviewTeam } from "../service";
 import { classReviewSchema, teamReviewSchema } from "../types";
 
 vi.mock("server-only", () => ({}));
@@ -125,11 +125,12 @@ function fakeDb(tables: Record<string, Record<string, unknown>[]>) {
 const clock = { now: Date.parse("2026-10-05T00:00:00Z") };
 
 const seed = () => ({
+  classes: [{ id: "c1", reveal_answers: false }] as Record<string, unknown>[],
   teams: [
     { id: "t1", name: "1조", case_key: "baemin", class_id: "c1" },
     { id: "t2", name: "2조", case_key: "baemin", class_id: "c1" },
   ],
-  submissions: [{ team_id: "t1", class_id: "c1", phase: "p1", kind: "design", version: 1, payload: design }],
+  submissions: [{ team_id: "t1", class_id: "c1", phase: "p1", kind: "design", version: 1, payload: design }] as Record<string, unknown>[],
   sim_runs: [{ team_id: "t1", class_id: "c1", case_key: "baemin", phase: "p1", design, design_hash: "h", result: simulateBaemin(design), created_at: "2026-10-04T00:00:00Z" }],
   ai_reviews: [] as Record<string, unknown>[],
 });
@@ -173,8 +174,65 @@ describe("reviewTeam / reviewClass (캐시·쿨다운·권한 범위)", () => {
     const r = await reviewClass(db, { classId: "c1", step: "s2_design" }, clock.now);
     expect(r.output.team_cards.map((c) => c.team)).toEqual(["1조"]);
   });
+  it("정답 공개 전에는 원문 해설을 보내지 않고, 공개 뒤에는 보내며 결과도 따로 캐시한다", async () => {
+    delete process.env.UPSTAGE_API_KEY;
+    const inputs: string[] = [];
+    const spy = vi.spyOn(await import("../generate"), "generateJson").mockImplementation(async (_l, _s, p) => {
+      inputs.push(p.user);
+      return { score: 70, strengths: [], issues: ["SRM 을 확인하세요"], nudge_questions: ["q?"], vs_original: "원문은 달랐어요" } as never;
+    });
+    const t = seed();
+    const db = fakeDb(t);
+    const closed = await reviewTeam(db, { classId: "c1", teamId: "t1", step: "s2_design" }, clock.now);
+    expect(JSON.parse(inputs[0]).original).toBeUndefined();
+    expect(closed.output.issues).toEqual([]); // 함정 이름이 든 문장은 걸러진다
+    t.classes[0].reveal_answers = true;
+    clock.now += COOLDOWN_MS + 1000;
+    const open = await reviewTeam(db, { classId: "c1", teamId: "t1", step: "s2_design" }, clock.now);
+    expect(open.cached).toBe(false);
+    expect(JSON.parse(inputs[1]).revealed).toBe(true);
+    expect(JSON.parse(inputs[1]).original).toBeTruthy();
+    expect(open.output.issues).toEqual(["SRM 을 확인하세요"]);
+    expect(open.output.vs_original).toBe("원문은 달랐어요");
+    spy.mockRestore();
+  });
   it("class: 제출이 하나도 없으면 409", async () => {
     const db = fakeDb({ ...seed(), submissions: [] });
     await expect(reviewClass(db, { classId: "c1", step: "s2_design" }, clock.now)).rejects.toMatchObject({ status: 409 });
+  });
+});
+
+describe("reviewShare / readShare (직소 브리핑)", () => {
+  const withMemo = () => {
+    const t = seed();
+    t.submissions.push({ team_id: "t1", class_id: "c1", step: "s8_share", phase: "memo", kind: "note", version: 1, payload: { learned: "SRM 이 중요했어요", lesson: "먼저 의심하자" } });
+    return t;
+  };
+  it("제출이 없으면 409", async () => {
+    await expect(reviewShare(fakeDb({ ...seed(), submissions: [] }), { classId: "c1" }, clock.now)).rejects.toMatchObject({ status: 409 });
+  });
+  it("결정 메모와 시뮬레이션 함정을 모아 한 번에 만들고 같은 입력은 캐시한다", async () => {
+    delete process.env.UPSTAGE_API_KEY;
+    const t = withMemo();
+    const db = fakeDb(t);
+    const first = await reviewShare(db, { classId: "c1" }, clock.now);
+    expect(first.model).toBe("mock");
+    expect(first.output.briefs.map((b) => b.team)).toEqual(["1조"]);
+    expect(first.output.briefs[0].one_lesson_for_other_teams).toBe("먼저 의심하자");
+    expect(t.ai_reviews).toHaveLength(1);
+    expect((t.ai_reviews[0] as { scope: string }).scope).toBe("share");
+    expect((await reviewShare(db, { classId: "c1" }, clock.now + 1000)).cached).toBe(true);
+    expect(t.ai_reviews).toHaveLength(1);
+  });
+  it("조 화면용 읽기: 공개 전에는 함정 이름을 가리고, 공개 뒤에는 그대로 보여준다", async () => {
+    delete process.env.UPSTAGE_API_KEY;
+    const t = withMemo();
+    const db = fakeDb(t);
+    await reviewShare(db, { classId: "c1" }, clock.now);
+    const out = (await readShare(db, "c1", false)).result!.output;
+    expect(JSON.stringify(out)).not.toMatch(/SRM|표본 비율 불일치|구성 효과/);
+    const shown = (await readShare(db, "c1", true)).result!.output;
+    expect(shown.briefs[0].traps_we_hit.length).toBeGreaterThanOrEqual(out.briefs[0].traps_we_hit.length);
+    expect((await readShare(fakeDb({ ...seed(), ai_reviews: [] }), "c1", false)).result).toBeNull();
   });
 });

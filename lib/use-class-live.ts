@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabaseBrowser } from "./supabase/client";
 import type { StepKey, StepStatus } from "./steps";
 
-export type LiveClass = { id: string; code: string; title: string; allowed_cases: string[]; max_teams_per_case: number };
+export type LiveClass = { id: string; code: string; title: string; allowed_cases: string[]; max_teams_per_case: number; reveal_answers: boolean };
 export type LiveTeam = { id: string; name: string; case_key: string | null; last_seen_at: string };
 export type LiveSteps = Partial<Record<StepKey, StepStatus>>;
 
@@ -31,7 +31,7 @@ export function useClassLive(code: string) {
     const db = supabaseBrowser();
     (async () => {
       const { data, error: err } = await db
-        .from("classes").select("id, code, title, allowed_cases, max_teams_per_case").eq("code", code.toUpperCase()).maybeSingle();
+        .from("classes").select("id, code, title, allowed_cases, max_teams_per_case, reveal_answers").eq("code", code.toUpperCase()).maybeSingle();
       if (cancelled) return;
       if (err || !data) {
         setError("수업을 찾을 수 없어요.");
@@ -47,6 +47,10 @@ export function useClassLive(code: string) {
         .channel(`class:${data.id}`)
         .on("postgres_changes", { event: "*", schema: "public", table: "step_states", filter }, () => load(data.id))
         .on("postgres_changes", { event: "*", schema: "public", table: "teams", filter }, () => load(data.id))
+        .on("postgres_changes", { event: "UPDATE", schema: "public", table: "classes", filter: `id=eq.${data.id}` }, (p) => {
+          const next = (p.new as { reveal_answers?: boolean }).reveal_answers;
+          if (typeof next === "boolean") setCls((c) => (c ? { ...c, reveal_answers: next } : c));
+        })
         .subscribe();
     })();
     return () => {

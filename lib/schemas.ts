@@ -32,7 +32,7 @@ export const setStepBody = z.object({
 export const reviewBody = z.object({
   code: classCode,
   step: z.enum(STEP_KEYS),
-  scope: z.enum(["team", "class"]),
+  scope: z.enum(["team", "class", "share"]),
   teamId: z.string().uuid().optional(),
 });
 
@@ -60,3 +60,16 @@ export const demoSimulateBody = z.object({
   mode: z.enum(["main", "aa"]).default("main"),
   design: z.record(z.string(), z.unknown()),
 });
+
+/** 정답 공개 토글(강사) */
+export const revealToggleBody = z.object({ code: classCode, reveal: z.boolean() });
+
+/** 조 화면: 공개된 정답·함정 보기, 직소 브리핑 읽기 */
+export const teamScopedBody = z.object({ code: classCode, teamId: z.string().uuid() });
+
+/** s8 결정 메모 (공통, 사례와 무관) */
+export const memoPayload = z.object({
+  learned: z.string().trim().min(1, "가장 많이 배운 실험과 이유를 적어주세요").max(1000, "1,000자 이내로 적어주세요"),
+  lesson: z.string().trim().min(1, "다른 조에게 전할 한 가지를 적어주세요").max(500, "500자 이내로 적어주세요"),
+});
+export type MemoPayload = z.infer<typeof memoPayload>;

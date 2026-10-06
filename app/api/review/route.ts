@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { fail, parseBody } from "@/lib/api";
 import { isAdmin } from "@/lib/auth/admin";
 import { normalizeClassCode } from "@/lib/class-code";
-import { ReviewError, reviewClass, reviewTeam } from "@/lib/review/service";
+import { ReviewError, reviewClass, reviewShare, reviewTeam } from "@/lib/review/service";
 import { reviewBody } from "@/lib/schemas";
 import { supabaseAdmin } from "@/lib/supabase/server";
 
@@ -15,7 +15,7 @@ export async function POST(req: Request) {
   if ("error" in body) return body.error;
   const { code, step, scope, teamId } = body.data;
 
-  if (scope === "class" && !(await isAdmin())) return fail("강사 로그인이 필요해요.", 401);
+  if ((scope === "class" || scope === "share") && !(await isAdmin())) return fail("강사 로그인이 필요해요.", 401);
   if (scope === "team" && !teamId) return fail("조 정보가 필요해요.");
 
   const db = supabaseAdmin();
@@ -23,7 +23,10 @@ export async function POST(req: Request) {
   if (!cls) return fail("수업 코드를 찾을 수 없어요.", 404);
 
   try {
-    const result = scope === "team" ? await reviewTeam(db, { classId: cls.id, teamId: teamId!, step }) : await reviewClass(db, { classId: cls.id, step });
+    const result =
+      scope === "team" ? await reviewTeam(db, { classId: cls.id, teamId: teamId!, step })
+      : scope === "share" ? await reviewShare(db, { classId: cls.id })
+      : await reviewClass(db, { classId: cls.id, step });
     return NextResponse.json(result);
   } catch (e) {
     if (e instanceof ReviewError) return fail(e.message, e.status);

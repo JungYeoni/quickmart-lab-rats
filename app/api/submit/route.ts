@@ -4,7 +4,7 @@ import { normalizeClassCode } from "@/lib/class-code";
 import { getPlugin } from "@/lib/cases/registry";
 import { decisionSchema, formatIssues, simPhaseOf, submissionKindOf } from "@/lib/lab/phase";
 import { runSimulation } from "@/lib/lab/sim-service";
-import { submitBody } from "@/lib/schemas";
+import { memoPayload, submitBody } from "@/lib/schemas";
 import { supabaseAdmin } from "@/lib/supabase/server";
 
 // 제출(진단·설계·결정): 사례 플러그인의 zod 로 검증하고, 스텝이 열려 있을 때만 저장한다. 재제출은 version 증가, 최신만 사용.
@@ -21,14 +21,18 @@ export async function POST(req: Request) {
   const plugin = getPlugin(team.case_key);
   if (!plugin) return fail("먼저 사례를 골라주세요. (아직 준비되지 않은 사례일 수도 있어요.)", 409);
 
-  // 이 (step, phase, kind) 조합이 플러그인에 실제로 있는지
-  const def = plugin.phases.find((p) => p.step === step && simPhaseOf(p.key) === phase && submissionKindOf(p.kind) === kind);
+  // s8 결정 메모는 사례와 무관한 공통 제출이다. 그 밖에는 이 (step, phase, kind) 조합이 플러그인에 실제로 있어야 한다.
+  const isMemo = step === "s8_share" && phase === "memo" && kind === "note";
+  const def = isMemo || plugin.phases.find((p) => p.step === step && simPhaseOf(p.key) === phase && submissionKindOf(p.kind) === kind);
   if (!def) return fail("이 단계에서는 제출할 수 없는 항목이에요.");
 
   const { data: st } = await db.from("step_states").select("status").eq("class_id", cls.id).eq("step", step).maybeSingle();
   if (st?.status !== "open") return fail("이 스텝은 지금 열려 있지 않아요. 강사님이 열면 제출할 수 있어요.", 409);
 
-  if (kind === "decision") {
+  if (isMemo) {
+    const parsed = memoPayload.safeParse(payload);
+    if (!parsed.success) return fail(parsed.error.issues[0].message);
+  } else if (kind === "decision") {
     const dec = plugin.decisions[phase];
     const parsed = decisionSchema((dec?.options ?? []).map((o) => o.id), dec?.fields).safeParse(payload);
     if (!parsed.success) return fail(parsed.error.issues[0].message);
