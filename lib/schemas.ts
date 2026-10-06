@@ -28,3 +28,27 @@ export const setStepBody = z.object({
   step: z.enum(STEP_KEYS),
   status: z.enum(STEP_STATUSES),
 });
+
+export const submitBody = z.object({
+  code: classCode,
+  teamId: z.string().uuid(),
+  step: z.enum(STEP_KEYS),
+  /** 설계·결정은 Phase('p1'~'p4'), 진단은 'diagnose' */
+  phase: z.string().min(1).max(40),
+  kind: z.enum(["design", "decision", "note", "diagnosis"]),
+  payload: z.record(z.string(), z.unknown()),
+});
+
+export const simulateBody = z.object({
+  code: classCode,
+  teamId: z.string().uuid(),
+  /** 플러그인 Phase 키 (예: 'p1_run', 'p1_readout') */
+  phase: z.string().min(1).max(40),
+  mode: z.enum(["main", "aa"]).default("main"),
+});
+
+export const demoSimulateBody = z.object({
+  phase: z.string().min(1).max(40),
+  mode: z.enum(["main", "aa"]).default("main"),
+  design: z.record(z.string(), z.unknown()),
+});

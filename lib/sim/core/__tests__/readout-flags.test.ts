@@ -37,6 +37,11 @@ describe("toTeamView (규칙 3: 숨긴 효과와 플래그는 조 화면으로 �
     expect(json).not.toContain("SRM");
     expect(json).not.toContain("trueEffect");
   });
+  it("achievedPower 는 진짜 효과에서 계산한 값이라 조 화면 응답에서 뺀다", () => {
+    const v = toTeamView({ ...readout, achievedPower: 0.25 }) as Record<string, unknown>;
+    expect("achievedPower" in v).toBe(false);
+    expect(JSON.stringify(v)).not.toContain("achievedPower");
+  });
   it("원본은 바꾸지 않는다", () => {
     toTeamView(readout);
     expect(readout.flags).toEqual(["RATIO_COMPOSITION", "SRM"]);

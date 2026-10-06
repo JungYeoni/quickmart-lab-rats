@@ -105,11 +105,12 @@ create policy "read classes"     on classes     for select using (true);
 create policy "read teams"       on teams       for select using (true);
 create policy "read steps"       on step_states for select using (true);
 create policy "read submissions" on submissions for select using (true);
-create policy "read sim_runs"    on sim_runs    for select using (true);
-create policy "read ai_reviews"  on ai_reviews  for select using (true);
 -- insert/update/delete 정책 없음 → anon 쓰기 불가, service role은 RLS 우회
--- 참고: sim_runs.result에는 숨긴 flags가 들어 있다. 숨기고 싶으면 아래 두 줄 실행 후 서버 라우트로만 내려줄 것
--- drop policy "read sim_runs" on sim_runs;  drop policy "read ai_reviews" on ai_reviews;
+-- sim_runs / ai_reviews 는 anon 읽기 정책을 두지 않는다(RLS 켜져 있으므로 anon 은 읽을 수 없음).
+--   sim_runs.result 에는 숨긴 flags 와 진짜 효과가 들어 있어서, 서버 라우트(/api/simulate 등)가 조 화면용으로 걸러 내려준다.
+-- 이미 예전 스키마를 적용한 DB 라면 아래 두 줄을 한 번 실행하세요(정책이 없으면 아무 일도 안 일어납니다).
+drop policy if exists "read sim_runs" on sim_runs;
+drop policy if exists "read ai_reviews" on ai_reviews;
 
 -- Realtime 구독 대상
 alter publication supabase_realtime add table step_states;

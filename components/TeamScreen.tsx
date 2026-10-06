@@ -1,11 +1,14 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { CASE_KEYS, CASES, type CaseKey } from "@/lib/cases";
+import { getClientCase } from "@/lib/cases/client-registry";
+import { createRemoteAdapter } from "@/lib/lab/adapter";
 import { STEP_KEYS, STEP_LABELS, type StepKey } from "@/lib/steps";
 import { countByCase } from "@/lib/team-case";
 import { useClassLive } from "@/lib/use-class-live";
 import { StatusBadge } from "./StatusBadge";
+import { StepView } from "./StepView";
 import { Badge, Button, Card, ErrorText } from "./ui";
 
 export function TeamScreen({ code, teamId }: { code: string; teamId: string }) {
@@ -13,6 +16,7 @@ export function TeamScreen({ code, teamId }: { code: string; teamId: string }) {
   const [active, setActive] = useState<StepKey>("s0_pick");
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
+  const adapter = useMemo(() => createRemoteAdapter(code, teamId), [code, teamId]);
 
   const me = teams.find((t) => t.id === teamId);
   if (loading) return <p className="p-8 text-ink3">불러오는 중…</p>;
@@ -28,6 +32,7 @@ export function TeamScreen({ code, teamId }: { code: string; teamId: string }) {
   const counts = countByCase(teams.filter((t) => t.id !== teamId).map((t) => t.case_key));
   const done = STEP_KEYS.filter((k) => steps[k] === "closed").length;
   const pickOpen = steps.s0_pick === "open";
+  const clientCase = getClientCase(me.case_key);
 
   async function pick(caseKey: CaseKey) {
     setMsg("");
@@ -82,11 +87,17 @@ export function TeamScreen({ code, teamId }: { code: string; teamId: string }) {
         <div className="mx-auto max-w-4xl">
           <h1 className="mb-1 mt-4 text-3xl font-bold tracking-tight">{STEP_LABELS[active]}</h1>
           {active !== "s0_pick" ? (
-            <Card className="mt-4">
-              <p className="text-ink2">
-                {steps[active] === "open" ? "이 스텝은 열려 있지만, 화면은 다음 마일스톤에서 만들어요." : "강사님이 열어주면 여기서 진행해요."}
-              </p>
-            </Card>
+            active === "s7_lab" || active === "s8_share" ? (
+              <Card className="mt-4"><p className="text-ink2">이 스텝의 화면은 다음 마일스톤에서 만들어요.</p></Card>
+            ) : !me.case_key ? (
+              <Card className="mt-4"><p className="text-ink2">먼저 &lsquo;사례 선택&rsquo; 스텝에서 사례를 골라주세요.</p></Card>
+            ) : !clientCase ? (
+              <Card className="mt-4"><p className="text-ink2">이 사례의 화면은 아직 준비 중이에요. 강사님께 알려주세요.</p></Card>
+            ) : (
+              <div className="mt-4">
+                <StepView key={active} client={clientCase} step={active} status={steps[active] ?? "locked"} adapter={adapter} />
+              </div>
+            )
           ) : (
             <>
               <p className="mb-4 text-ink2">우리 조가 실험해볼 사례를 하나 골라요. 사례당 최대 {cls.max_teams_per_case}개 조까지 고를 수 있어요.</p>

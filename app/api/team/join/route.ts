@@ -22,6 +22,9 @@ export async function POST(req: Request) {
   }
 
   const { data: team, error } = await db.from("teams").insert({ class_id: cls.id, name }).select("id").single();
-  if (error) return fail("조를 만들지 못했어요.", 500);
+  if (error) {
+    console.error("[api/team/join] 조 생성 실패", error);
+    return fail("조를 만들지 못했어요.", 500);
+  }
   return NextResponse.json({ teamId: team.id, code: cls.code, rejoined: false });
 }
